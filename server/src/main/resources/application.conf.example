@@ -1,0 +1,17 @@
+ktor {
+    deployment {
+        port = 8080
+        port = ${?PORT}
+    }
+    application {
+        modules = [ ru.sber.cb.aichallenge_one.ApplicationKt.module ]
+    }
+}
+
+gigachat {
+    baseUrl = "https://gigachat.devices.sberbank.ru/api/v1"
+    authUrl = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
+    clientId = "your_client_id_here"
+    clientSecret = "your_client_secret_here"
+    scope = "GIGACHAT_API_PERS"
+}

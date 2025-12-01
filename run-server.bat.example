@@ -1,0 +1,11 @@
+@echo off
+REM Set GigaChat API credentials
+REM Copy this file to run-server.bat and fill in your actual credentials
+
+set gigachat-client-id=your_client_id_here
+set gigachat-secret-key=your_client_secret_here
+
+echo Starting GigaChat server with dev configuration...
+echo.
+
+gradlew.bat :server:runDev
