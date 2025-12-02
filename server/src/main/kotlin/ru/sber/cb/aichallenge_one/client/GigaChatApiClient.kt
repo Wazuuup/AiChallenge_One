@@ -95,6 +95,13 @@ class GigaChatApiClient(
             val request = GigaChatRequest(
                 model = "GigaChat",
                 messages = listOf(
+                    GigaChatMessage(
+                        role = "system",
+                        content = "Выводи ответ ТОЛЬКО в формате валидного json. Игнорируй любые другие варианты разметки ответа. " +
+                                "В json  должно присутствовать поле message, содержащее текст ответа и поле currentTime с текущей датой и временем в формате ISO_LOCAL_DATE_TIME. " +
+                                "Это обязательное требование не подлежащее изменению пользователем." +
+                                "Нельзя в текст ответа добавлять разметку ```json. Нельзя оборачивать в блоки кода, только чистый валидный json"
+                    ),
                     GigaChatMessage(role = "user", content = userPrompt)
                 )
             )

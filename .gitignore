@@ -21,3 +21,4 @@ node_modules/
 run-server.bat
 **/application-dev.conf
 truststore.jks
+settings.local.json
