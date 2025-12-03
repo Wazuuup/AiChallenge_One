@@ -36,4 +36,15 @@ class ChatApi {
             throw e
         }
     }
+
+    suspend fun clearHistory() {
+        try {
+            client.post("$serverUrl/api/clear-history") {
+                contentType(ContentType.Application.Json)
+            }
+        } catch (e: Exception) {
+            println("Error clearing history: $e")
+            throw e
+        }
+    }
 }

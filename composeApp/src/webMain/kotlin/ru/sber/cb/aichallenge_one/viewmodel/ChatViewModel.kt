@@ -58,4 +58,19 @@ class ChatViewModel : ViewModel() {
             }
         }
     }
+
+    fun clearChat() {
+        viewModelScope.launch {
+            try {
+                chatApi.clearHistory()
+                _messages.value = emptyList()
+            } catch (e: Exception) {
+                val errorMessage = ChatMessage(
+                    "Не удалось очистить историю чата.",
+                    SenderType.BOT
+                )
+                _messages.value = _messages.value + errorMessage
+            }
+        }
+    }
 }

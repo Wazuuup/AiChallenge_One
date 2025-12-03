@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.unit.dp
 import ru.sber.cb.aichallenge_one.models.ChatMessage
 import ru.sber.cb.aichallenge_one.models.SenderType
@@ -30,6 +31,19 @@ fun ChatScreen() {
     ) {
         TopAppBar(
             title = { Text("GigaChat") },
+            actions = {
+                Button(
+                    onClick = { viewModel.clearChat() },
+                    enabled = !isLoading,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary,
+                        contentColor = MaterialTheme.colorScheme.onSecondary
+                    ),
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Text("Новый чат")
+                }
+            },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 titleContentColor = MaterialTheme.colorScheme.onPrimary
@@ -137,7 +151,19 @@ fun MessageInput(
                 onValueChange = onInputChanged,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(end = 8.dp),
+                    .padding(end = 8.dp)
+                    .onKeyEvent { keyEvent ->
+                        if (keyEvent.key == Key.Enter && keyEvent.type == KeyEventType.KeyDown) {
+                            if (!keyEvent.isShiftPressed && inputText.isNotBlank() && !isLoading) {
+                                onSendMessage()
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    },
                 placeholder = { Text("Введите сообщение...") },
                 enabled = !isLoading,
                 maxLines = 4

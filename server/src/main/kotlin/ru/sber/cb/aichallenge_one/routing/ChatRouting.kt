@@ -21,16 +21,21 @@ fun Route.chatRouting() {
                     call.respond(HttpStatusCode.BadRequest, "Message text cannot be empty")
                     return@post
                 }
-                /* call.respond(HttpStatusCode.OK, ChatResponse(
-                     text = "sssss",
-                     status = ResponseStatus.SUCCESS
-                 ))*/
-
 
                 val response: ChatResponse = chatService.processUserMessage(request.text)
                 call.respond(HttpStatusCode.OK, response)
             } catch (e: Exception) {
                 call.application.environment.log.error("Error in send-message endpoint", e)
+                call.respond(HttpStatusCode.InternalServerError, "Internal server error")
+            }
+        }
+
+        post("/clear-history") {
+            try {
+                chatService.clearHistory()
+                call.respond(HttpStatusCode.OK, mapOf("message" to "History cleared"))
+            } catch (e: Exception) {
+                call.application.environment.log.error("Error in clear-history endpoint", e)
                 call.respond(HttpStatusCode.InternalServerError, "Internal server error")
             }
         }

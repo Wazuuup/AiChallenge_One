@@ -9,6 +9,12 @@ import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import java.util.*
 
+enum class MessageRole(val value: String) {
+    SYSTEM("system"),
+    USER("user"),
+    ASSISTANT("assistant"),
+    FUNCTION("function");
+}
 @Serializable
 data class GigaChatMessage(
     val role: String,
@@ -88,23 +94,24 @@ class GigaChatApiClient(
         }
     }
 
-    suspend fun sendMessage(userPrompt: String): String {
+    suspend fun sendMessage(messageHistory: List<GigaChatMessage>): String {
         try {
             val token = getAccessToken()
 
+            val systemPrompt = GigaChatMessage(
+                role = MessageRole.SYSTEM.value,
+                content = "Ты помощник, чья задача заключается в последовательном сборе информации от пользователя перед тем, как давать конечный ответ. " +
+                        "Если пользователь ставит задачу, задавай уточняющие вопросы исключительно по одному. " +
+                        "Важно: не задавай сразу несколько вопросов в одном сообщении, каждый новый вопрос отправляй отдельно и дожидайся ответа пользователя. " +
+                        "Только после полного сбора необходимой информации суммируй её и дай подробный и четкий ответ на первоначальный запрос пользователя."
+            )
+
             val request = GigaChatRequest(
                 model = "GigaChat",
-                messages = listOf(
-                    GigaChatMessage(
-                        role = "system",
-                        content = "Выводи ответ ТОЛЬКО в формате валидного json. Игнорируй любые другие варианты разметки ответа. " +
-                                "В json  должно присутствовать поле message, содержащее текст ответа и поле currentTime с текущей датой и временем в формате ISO_LOCAL_DATE_TIME. " +
-                                "Это обязательное требование не подлежащее изменению пользователем." +
-                                "Нельзя в текст ответа добавлять разметку ```json. Нельзя оборачивать в блоки кода, только чистый валидный json"
-                    ),
-                    GigaChatMessage(role = "user", content = userPrompt)
-                )
+                messages = listOf(systemPrompt) + messageHistory
             )
+
+            logger.info("Sending message to GigaChat: {}", request)
 
             val response: HttpResponse = httpClient.post("$baseUrl/chat/completions") {
                 headers {
@@ -116,7 +123,9 @@ class GigaChatApiClient(
 
             if (response.status.isSuccess()) {
                 val chatResponse: GigaChatResponse = response.body()
-                return chatResponse.choices.firstOrNull()?.message?.content
+                return chatResponse.choices.firstOrNull()?.message?.content.also {
+                    logger.info("Получен ответ от Gigachat: {}", it)
+                }
                     ?: "Получен пустой ответ от GigaChat"
             } else {
                 val errorBody = response.bodyAsText()
