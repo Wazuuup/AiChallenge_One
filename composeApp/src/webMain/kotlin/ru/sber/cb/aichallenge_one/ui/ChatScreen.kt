@@ -22,6 +22,7 @@ fun ChatScreen() {
     val viewModel = remember { ChatViewModel() }
     val messages by viewModel.messages.collectAsState()
     val inputText by viewModel.inputText.collectAsState()
+    val systemPrompt by viewModel.systemPrompt.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
     Column(
@@ -48,6 +49,13 @@ fun ChatScreen() {
                 containerColor = MaterialTheme.colorScheme.primary,
                 titleContentColor = MaterialTheme.colorScheme.onPrimary
             )
+        )
+
+        SystemPromptInput(
+            systemPrompt = systemPrompt,
+            onSystemPromptChanged = viewModel::onSystemPromptChanged,
+            isLoading = isLoading,
+            modifier = Modifier.fillMaxWidth()
         )
 
         MessageList(
@@ -128,6 +136,45 @@ fun MessageBubble(message: ChatMessage) {
 }
 
 @Composable
+fun SystemPromptInput(
+    systemPrompt: String,
+    onSystemPromptChanged: (String) -> Unit,
+    isLoading: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shadowElevation = 4.dp,
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+        ) {
+            Text(
+                text = "Системный промпт",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            OutlinedTextField(
+                value = systemPrompt,
+                onValueChange = onSystemPromptChanged,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Введите системный промпт (опционально)...") },
+                enabled = !isLoading,
+                maxLines = 3,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+        }
+    }
+}
+
+@Composable
 fun MessageInput(
     inputText: String,
     onInputChanged: (String) -> Unit,
@@ -152,7 +199,7 @@ fun MessageInput(
                 modifier = Modifier
                     .weight(1f)
                     .padding(end = 8.dp)
-                    .onKeyEvent { keyEvent ->
+                    .onPreviewKeyEvent { keyEvent ->
                         if (keyEvent.key == Key.Enter && keyEvent.type == KeyEventType.KeyDown) {
                             if (!keyEvent.isShiftPressed && inputText.isNotBlank() && !isLoading) {
                                 onSendMessage()

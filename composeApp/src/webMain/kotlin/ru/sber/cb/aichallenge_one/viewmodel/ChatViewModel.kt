@@ -23,8 +23,15 @@ class ChatViewModel : ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _systemPrompt = MutableStateFlow("")
+    val systemPrompt: StateFlow<String> = _systemPrompt.asStateFlow()
+
     fun onInputChanged(text: String) {
         _inputText.value = text
+    }
+
+    fun onSystemPromptChanged(text: String) {
+        _systemPrompt.value = text
     }
 
     fun sendMessage() {
@@ -38,7 +45,7 @@ class ChatViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                val response = chatApi.sendMessage(text)
+                val response = chatApi.sendMessage(text, _systemPrompt.value)
 
                 val botMessage = if (response.status == ResponseStatus.SUCCESS) {
                     ChatMessage(response.text, SenderType.BOT)

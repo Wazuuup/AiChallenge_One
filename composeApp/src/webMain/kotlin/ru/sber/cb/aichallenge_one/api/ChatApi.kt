@@ -24,11 +24,11 @@ class ChatApi {
 
     private val serverUrl = "http://localhost:${Constants.SERVER_PORT.number}"
 
-    suspend fun sendMessage(text: String): ChatResponse {
+    suspend fun sendMessage(text: String, systemPrompt: String = ""): ChatResponse {
         return try {
             val response = client.post("$serverUrl/api/send-message") {
                 contentType(ContentType.Application.Json)
-                setBody(SendMessageRequest(text))
+                setBody(SendMessageRequest(text, systemPrompt))
             }
             response.body()
         } catch (e: Exception) {

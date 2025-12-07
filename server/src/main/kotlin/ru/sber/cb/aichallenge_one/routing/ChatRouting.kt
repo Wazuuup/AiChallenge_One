@@ -22,7 +22,7 @@ fun Route.chatRouting() {
                     return@post
                 }
 
-                val response: ChatResponse = chatService.processUserMessage(request.text)
+                val response: ChatResponse = chatService.processUserMessage(request.text, request.systemPrompt)
                 call.respond(HttpStatusCode.OK, response)
             } catch (e: Exception) {
                 call.application.environment.log.error("Error in send-message endpoint", e)

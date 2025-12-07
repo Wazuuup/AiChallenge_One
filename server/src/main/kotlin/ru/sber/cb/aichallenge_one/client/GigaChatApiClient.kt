@@ -94,16 +94,17 @@ class GigaChatApiClient(
         }
     }
 
-    suspend fun sendMessage(messageHistory: List<GigaChatMessage>): String {
+    suspend fun sendMessage(messageHistory: List<GigaChatMessage>, customSystemPrompt: String = ""): String {
         try {
             val token = getAccessToken()
 
+            val systemPromptContent = customSystemPrompt.ifBlank {
+                "Отвечай как подполковник в отставке"
+            }
+
             val systemPrompt = GigaChatMessage(
                 role = MessageRole.SYSTEM.value,
-                content = "Ты помощник, чья задача заключается в последовательном сборе информации от пользователя перед тем, как давать конечный ответ. " +
-                        "Если пользователь ставит задачу, задавай уточняющие вопросы исключительно по одному. " +
-                        "Важно: не задавай сразу несколько вопросов в одном сообщении, каждый новый вопрос отправляй отдельно и дожидайся ответа пользователя. " +
-                        "Только после полного сбора необходимой информации суммируй её и дай подробный и четкий ответ на первоначальный запрос пользователя."
+                content = systemPromptContent
             )
 
             val request = GigaChatRequest(
