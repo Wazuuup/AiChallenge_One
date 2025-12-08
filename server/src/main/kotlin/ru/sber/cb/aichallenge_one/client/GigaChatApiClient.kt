@@ -94,7 +94,11 @@ class GigaChatApiClient(
         }
     }
 
-    suspend fun sendMessage(messageHistory: List<GigaChatMessage>, customSystemPrompt: String = ""): String {
+    suspend fun sendMessage(
+        messageHistory: List<GigaChatMessage>,
+        customSystemPrompt: String = "",
+        temperature: Double = 0.7
+    ): String {
         try {
             val token = getAccessToken()
 
@@ -109,7 +113,8 @@ class GigaChatApiClient(
 
             val request = GigaChatRequest(
                 model = "GigaChat",
-                messages = listOf(systemPrompt) + messageHistory
+                messages = listOf(systemPrompt) + messageHistory,
+                temperature = temperature
             )
 
             logger.info("Sending message to GigaChat: {}", request)

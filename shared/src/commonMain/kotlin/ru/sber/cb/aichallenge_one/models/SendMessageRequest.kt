@@ -5,5 +5,6 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class SendMessageRequest(
     val text: String,
-    val systemPrompt: String = ""
+    val systemPrompt: String = "",
+    val temperature: Double = 0.7
 )

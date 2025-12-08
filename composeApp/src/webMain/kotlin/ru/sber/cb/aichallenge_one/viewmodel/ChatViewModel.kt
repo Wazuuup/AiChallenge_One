@@ -26,12 +26,19 @@ class ChatViewModel : ViewModel() {
     private val _systemPrompt = MutableStateFlow("")
     val systemPrompt: StateFlow<String> = _systemPrompt.asStateFlow()
 
+    private val _temperature = MutableStateFlow(0.7)
+    val temperature: StateFlow<Double> = _temperature.asStateFlow()
+
     fun onInputChanged(text: String) {
         _inputText.value = text
     }
 
     fun onSystemPromptChanged(text: String) {
         _systemPrompt.value = text
+    }
+
+    fun onTemperatureChanged(value: Double) {
+        _temperature.value = value.coerceIn(0.0, 2.0)
     }
 
     fun sendMessage() {
@@ -45,7 +52,7 @@ class ChatViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                val response = chatApi.sendMessage(text, _systemPrompt.value)
+                val response = chatApi.sendMessage(text, _systemPrompt.value, _temperature.value)
 
                 val botMessage = if (response.status == ResponseStatus.SUCCESS) {
                     ChatMessage(response.text, SenderType.BOT)

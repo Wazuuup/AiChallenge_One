@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +24,7 @@ fun ChatScreen() {
     val messages by viewModel.messages.collectAsState()
     val inputText by viewModel.inputText.collectAsState()
     val systemPrompt by viewModel.systemPrompt.collectAsState()
+    val temperature by viewModel.temperature.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
     Column(
@@ -54,6 +56,8 @@ fun ChatScreen() {
         SystemPromptInput(
             systemPrompt = systemPrompt,
             onSystemPromptChanged = viewModel::onSystemPromptChanged,
+            temperature = temperature,
+            onTemperatureChanged = viewModel::onTemperatureChanged,
             isLoading = isLoading,
             modifier = Modifier.fillMaxWidth()
         )
@@ -122,15 +126,17 @@ fun MessageBubble(message: ChatMessage) {
                 }
             )
         ) {
-            Text(
-                text = message.text,
-                modifier = Modifier.padding(12.dp),
-                color = if (message.sender == SenderType.USER) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSecondaryContainer
-                }
-            )
+            SelectionContainer {
+                Text(
+                    text = message.text,
+                    modifier = Modifier.padding(12.dp),
+                    color = if (message.sender == SenderType.USER) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    }
+                )
+            }
         }
     }
 }
@@ -139,6 +145,8 @@ fun MessageBubble(message: ChatMessage) {
 fun SystemPromptInput(
     systemPrompt: String,
     onSystemPromptChanged: (String) -> Unit,
+    temperature: Double,
+    onTemperatureChanged: (Double) -> Unit,
     isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -170,6 +178,43 @@ fun SystemPromptInput(
                     unfocusedContainerColor = MaterialTheme.colorScheme.surface
                 )
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Temperature: ${temperature.toString().take(4)}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Slider(
+                    value = temperature.toFloat(),
+                    onValueChange = { onTemperatureChanged(it.toDouble()) },
+                    valueRange = 0f..2f,
+                    steps = 19,
+                    enabled = !isLoading,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedTextField(
+                    value = temperature.toString().take(4),
+                    onValueChange = { newValue ->
+                        newValue.toDoubleOrNull()?.let { onTemperatureChanged(it) }
+                    },
+                    modifier = Modifier.width(80.dp),
+                    enabled = !isLoading,
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+            }
         }
     }
 }

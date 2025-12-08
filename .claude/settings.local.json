@@ -6,7 +6,11 @@
       "Bash(cmd.exe /c \"gradlew.bat build --no-daemon\")",
       "Bash(git add:*)",
       "Bash(cmd.exe /c \"gradlew.bat :composeApp:build --no-configuration-cache 2>&1 | head -50\")",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(.gradlew.bat :composeApp:build:*)",
+      "Bash(./gradlew.bat build:*)",
+      "Bash(./gradlew.bat clean:*)",
+      "Bash(./gradlew.bat:*)"
     ],
     "deny": [],
     "ask": []

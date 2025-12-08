@@ -11,13 +11,17 @@ class ChatService(val gigaChatApiClient: GigaChatApiClient) {
     private val logger = LoggerFactory.getLogger(ChatService::class.java)
     private val messageHistory = mutableListOf<GigaChatMessage>()
 
-    suspend fun processUserMessage(userText: String, systemPrompt: String = ""): ChatResponse {
+    suspend fun processUserMessage(
+        userText: String,
+        systemPrompt: String = "",
+        temperature: Double = 0.7
+    ): ChatResponse {
         return try {
-            logger.info("Processing user message: $userText")
+            logger.info("Processing user message: $userText with temperature: $temperature")
 
             messageHistory.add(GigaChatMessage(role = MessageRole.USER.value, content = userText))
 
-            val response = gigaChatApiClient.sendMessage(messageHistory, systemPrompt)
+            val response = gigaChatApiClient.sendMessage(messageHistory, systemPrompt, temperature)
             logger.info("Received response from GigaChat")
 
             messageHistory.add(GigaChatMessage(role = MessageRole.ASSISTANT.value, content = response))
