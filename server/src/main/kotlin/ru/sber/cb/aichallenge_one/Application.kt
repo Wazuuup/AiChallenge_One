@@ -15,6 +15,7 @@ import org.koin.core.logger.Level
 import org.koin.ktor.plugin.Koin
 import ru.sber.cb.aichallenge_one.di.appModule
 import ru.sber.cb.aichallenge_one.routing.chatRouting
+import ru.sber.cb.aichallenge_one.routing.modelsRouting
 
 fun main() {
     embeddedServer(Netty, port = SERVER_PORT, host = "0.0.0.0", module = Application::module)
@@ -61,11 +62,42 @@ fun Application.module() {
     log.info("GigaChat configuration loaded successfully")
     log.info("Client ID: ${clientId.take(10)}...")
 
+    // Load OpenAI-compatible configuration (optional)
+    val openAIBaseUrl = if (config.hasPath("openai.baseUrl")) {
+        config.getString("openai.baseUrl")
+    } else null
+
+    val openAIApiKey = if (config.hasPath("openai.apiKey")) {
+        config.getString("openai.apiKey")
+    } else null
+
+    val openAIModel = if (config.hasPath("openai.model")) {
+        config.getString("openai.model")
+    } else null
+
+    val openAIMaxTokens = if (config.hasPath("openai.maxTokens")) {
+        config.getInt("openai.maxTokens")
+    } else null
+
+    val openAITopP = if (config.hasPath("openai.topP")) {
+        config.getDouble("openai.topP")
+    } else null
+
+    if (openAIBaseUrl != null && openAIApiKey != null) {
+        log.info("OpenAI-compatible API configuration loaded successfully")
+        log.info("OpenAI Base URL: $openAIBaseUrl")
+        log.info("OpenAI Model: ${openAIModel ?: "gpt-3.5-turbo"}")
+    }
 
     install(Koin) {
         // slf4jLogger()
         printLogger(Level.DEBUG)
-        modules(appModule(gigaChatBaseUrl, gigaChatAuthUrl, clientId, clientSecret, scope))
+        modules(
+            appModule(
+                gigaChatBaseUrl, gigaChatAuthUrl, clientId, clientSecret, scope,
+                openAIBaseUrl, openAIApiKey, openAIModel, openAIMaxTokens, openAITopP
+            )
+        )
     }
 
     install(ContentNegotiation) {
@@ -91,5 +123,6 @@ fun Application.module() {
         }
 
         chatRouting()
+        modelsRouting()
     }
 }

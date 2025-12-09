@@ -10,7 +10,11 @@
       "Bash(.gradlew.bat :composeApp:build:*)",
       "Bash(./gradlew.bat build:*)",
       "Bash(./gradlew.bat clean:*)",
-      "Bash(./gradlew.bat:*)"
+      "Bash(./gradlew.bat:*)",
+      "Bash(cmd.exe /c \"gradlew.bat :server:build --no-configuration-cache 2>&1 | head -100\")",
+      "Bash(.gradlew.bat :server:build --no-daemon)",
+      "Bash(cmd.exe /c \"gradlew.bat :server:build --no-daemon\")",
+      "Bash(cmd.exe /c:*)"
     ],
     "deny": [],
     "ask": []

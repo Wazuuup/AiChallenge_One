@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import ru.sber.cb.aichallenge_one.api.ChatApi
 import ru.sber.cb.aichallenge_one.models.ChatMessage
+import ru.sber.cb.aichallenge_one.models.ModelInfo
 import ru.sber.cb.aichallenge_one.models.ResponseStatus
 import ru.sber.cb.aichallenge_one.models.SenderType
 
@@ -29,6 +30,23 @@ class ChatViewModel : ViewModel() {
     private val _temperature = MutableStateFlow(0.7)
     val temperature: StateFlow<Double> = _temperature.asStateFlow()
 
+    private val _provider = MutableStateFlow("gigachat")
+    val provider: StateFlow<String> = _provider.asStateFlow()
+
+    private val _selectedModel = MutableStateFlow<String?>(null)
+    val selectedModel: StateFlow<String?> = _selectedModel.asStateFlow()
+
+    private val _availableModels = MutableStateFlow<List<ModelInfo>>(emptyList())
+    val availableModels: StateFlow<List<ModelInfo>> = _availableModels.asStateFlow()
+
+    private val _isLoadingModels = MutableStateFlow(false)
+    val isLoadingModels: StateFlow<Boolean> = _isLoadingModels.asStateFlow()
+
+    init {
+        // Fetch models on initialization
+        fetchModels()
+    }
+
     fun onInputChanged(text: String) {
         _inputText.value = text
     }
@@ -39,6 +57,38 @@ class ChatViewModel : ViewModel() {
 
     fun onTemperatureChanged(value: Double) {
         _temperature.value = value.coerceIn(0.0, 2.0)
+    }
+
+    fun onProviderChanged(provider: String) {
+        _provider.value = provider
+        if (provider == "gigachat") {
+            _selectedModel.value = null
+        } else if (provider == "openrouter" && _availableModels.value.isNotEmpty() && _selectedModel.value == null) {
+            // Set first model as default when switching to OpenRouter
+            _selectedModel.value = _availableModels.value.firstOrNull()?.id
+        }
+    }
+
+    fun onModelChanged(modelId: String) {
+        _selectedModel.value = modelId
+    }
+
+    private fun fetchModels() {
+        _isLoadingModels.value = true
+        viewModelScope.launch {
+            try {
+                val models = chatApi.fetchAvailableModels()
+                _availableModels.value = models
+                // Set default model if OpenRouter is selected and no model is chosen
+                if (_provider.value == "openrouter" && _selectedModel.value == null && models.isNotEmpty()) {
+                    _selectedModel.value = models.first().id
+                }
+            } catch (e: Exception) {
+                println("Failed to fetch models: $e")
+            } finally {
+                _isLoadingModels.value = false
+            }
+        }
     }
 
     fun sendMessage() {
@@ -52,7 +102,13 @@ class ChatViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                val response = chatApi.sendMessage(text, _systemPrompt.value, _temperature.value)
+                val response = chatApi.sendMessage(
+                    text = text,
+                    systemPrompt = _systemPrompt.value,
+                    temperature = _temperature.value,
+                    provider = _provider.value,
+                    model = _selectedModel.value
+                )
 
                 val botMessage = if (response.status == ResponseStatus.SUCCESS) {
                     ChatMessage(response.text, SenderType.BOT)

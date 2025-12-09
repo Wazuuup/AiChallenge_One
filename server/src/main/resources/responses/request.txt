@@ -1,19 +1,6 @@
-package ru.sber.cb.aichallenge_one.service
-
-import org.slf4j.LoggerFactory
-import ru.sber.cb.aichallenge_one.client.*
-import ru.sber.cb.aichallenge_one.models.ChatResponse
-import ru.sber.cb.aichallenge_one.models.ResponseStatus
-
-class ChatService(
-    val gigaChatApiClient: GigaChatApiClient,
-    val openAIApiClient: OpenAIApiClient?
-) {
-    private val logger = LoggerFactory.getLogger(ChatService::class.java)
-    private val gigaChatHistory = mutableListOf<GigaChatMessage>()
-    private val openRouterHistory = mutableListOf<OpenAIMessage>()
-
-    suspend fun processUserMessage(
+Действуй как senior kotlin developer.
+Выполни ревью кода ниже и предоставь предолжения по его рефакторингу:
+suspend fun processUserMessage(
         userText: String,
         systemPrompt: String = "",
         temperature: Double = 0.7,
@@ -60,10 +47,3 @@ class ChatService(
             ChatResponse("Возникла ошибка при получении ответа: ${e.message}", ResponseStatus.ERROR)
         }
     }
-
-    fun clearHistory() {
-        logger.info("Clearing message history")
-        gigaChatHistory.clear()
-        openRouterHistory.clear()
-    }
-}

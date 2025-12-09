@@ -8,7 +8,9 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 import org.koin.dsl.module
 import ru.sber.cb.aichallenge_one.client.GigaChatApiClient
+import ru.sber.cb.aichallenge_one.client.OpenAIApiClient
 import ru.sber.cb.aichallenge_one.service.ChatService
+import ru.sber.cb.aichallenge_one.service.OpenRouterModelsService
 import java.security.KeyStore
 import java.security.SecureRandom
 import javax.net.ssl.SSLContext
@@ -20,9 +22,15 @@ fun appModule(
     authUrl: String,
     clientId: String,
     clientSecret: String,
-    scope: String
+    scope: String,
+    openAIBaseUrl: String? = null,
+    openAIApiKey: String? = null,
+    openAIModel: String? = null,
+    openAIMaxTokens: Int? = null,
+    openAITopP: Double? = null
 ) = module {
-    single {
+    // HttpClient for GigaChat with custom truststore
+    single(qualifier = org.koin.core.qualifier.named("gigachat")) {
         val keystoreStream = this::class.java.classLoader.getResourceAsStream("truststore.jks")
 
         val trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply {
@@ -60,9 +68,32 @@ fun appModule(
         }
     }
 
+    // HttpClient for OpenAI/OpenRouter with default system certificates
+    single(qualifier = org.koin.core.qualifier.named("openai")) {
+        HttpClient(CIO) {
+            install(ContentNegotiation) {
+                json(Json {
+                    ignoreUnknownKeys = true
+                    prettyPrint = true
+                    isLenient = true
+                })
+            }
+            install(Logging) {
+                logger = Logger.DEFAULT
+                level = LogLevel.INFO
+            }
+            engine {
+                endpoint {
+                    connectTimeout = 30000
+                    requestTimeout = 60000
+                }
+            }
+        }
+    }
+
     single {
         GigaChatApiClient(
-            httpClient = get(),
+            httpClient = get(org.koin.core.qualifier.named("gigachat")),
             baseUrl = baseUrl,
             authUrl = authUrl,
             clientId = clientId,
@@ -71,5 +102,34 @@ fun appModule(
         )
     }
 
-    single { ChatService(get()) }
+    // OpenAI-compatible API client (optional)
+    single {
+        if (openAIBaseUrl != null && openAIApiKey != null) {
+            OpenAIApiClient(
+                httpClient = get(org.koin.core.qualifier.named("openai")),
+                baseUrl = openAIBaseUrl,
+                apiKey = openAIApiKey,
+                model = openAIModel ?: "gpt-3.5-turbo",
+                maxTokens = openAIMaxTokens,
+                topP = openAITopP
+            )
+        } else {
+            null
+        }
+    }
+
+    // OpenRouter Models Service (optional)
+    single {
+        if (openAIBaseUrl != null && openAIApiKey != null) {
+            OpenRouterModelsService(
+                httpClient = get(org.koin.core.qualifier.named("openai")),
+                baseUrl = openAIBaseUrl,
+                apiKey = openAIApiKey
+            )
+        } else {
+            null
+        }
+    }
+
+    single { ChatService(get(), get()) }
 }

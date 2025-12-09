@@ -1,5 +1,6 @@
 package ru.sber.cb.aichallenge_one.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.unit.dp
 import ru.sber.cb.aichallenge_one.models.ChatMessage
+import ru.sber.cb.aichallenge_one.models.ModelInfo
 import ru.sber.cb.aichallenge_one.models.SenderType
 import ru.sber.cb.aichallenge_one.viewmodel.ChatViewModel
 
@@ -26,6 +28,10 @@ fun ChatScreen() {
     val systemPrompt by viewModel.systemPrompt.collectAsState()
     val temperature by viewModel.temperature.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val provider by viewModel.provider.collectAsState()
+    val selectedModel by viewModel.selectedModel.collectAsState()
+    val availableModels by viewModel.availableModels.collectAsState()
+    val isLoadingModels by viewModel.isLoadingModels.collectAsState()
 
     Column(
         modifier = Modifier
@@ -58,6 +64,12 @@ fun ChatScreen() {
             onSystemPromptChanged = viewModel::onSystemPromptChanged,
             temperature = temperature,
             onTemperatureChanged = viewModel::onTemperatureChanged,
+            provider = provider,
+            onProviderChanged = viewModel::onProviderChanged,
+            selectedModel = selectedModel,
+            onModelChanged = viewModel::onModelChanged,
+            availableModels = availableModels,
+            isLoadingModels = isLoadingModels,
             isLoading = isLoading,
             modifier = Modifier.fillMaxWidth()
         )
@@ -141,12 +153,19 @@ fun MessageBubble(message: ChatMessage) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SystemPromptInput(
     systemPrompt: String,
     onSystemPromptChanged: (String) -> Unit,
     temperature: Double,
     onTemperatureChanged: (Double) -> Unit,
+    provider: String,
+    onProviderChanged: (String) -> Unit,
+    selectedModel: String?,
+    onModelChanged: (String) -> Unit,
+    availableModels: List<ModelInfo>,
+    isLoadingModels: Boolean,
     isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -214,6 +233,122 @@ fun SystemPromptInput(
                         unfocusedContainerColor = MaterialTheme.colorScheme.surface
                     )
                 )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // API Provider Selector
+            Text(
+                text = "API Provider",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+
+            var providerExpanded by remember { mutableStateOf(false) }
+
+            ExposedDropdownMenuBox(
+                expanded = providerExpanded,
+                onExpandedChange = { providerExpanded = !providerExpanded && !isLoading }
+            ) {
+                OutlinedTextField(
+                    value = if (provider == "gigachat") "GigaChat" else "OpenRouter",
+                    onValueChange = {},
+                    readOnly = true,
+                    enabled = !isLoading,
+                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+
+                ExposedDropdownMenu(
+                    expanded = providerExpanded,
+                    onDismissRequest = { providerExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("GigaChat") },
+                        onClick = {
+                            onProviderChanged("gigachat")
+                            providerExpanded = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("OpenRouter") },
+                        onClick = {
+                            onProviderChanged("openrouter")
+                            providerExpanded = false
+                        }
+                    )
+                }
+            }
+
+            // Model Selector (only show for OpenRouter)
+            AnimatedVisibility(visible = provider == "openrouter") {
+                Column {
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Model",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+
+                    var modelExpanded by remember { mutableStateOf(false) }
+
+                    if (isLoadingModels) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        }
+                    } else if (availableModels.isNotEmpty()) {
+                        ExposedDropdownMenuBox(
+                            expanded = modelExpanded,
+                            onExpandedChange = { modelExpanded = !modelExpanded && !isLoading }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedModel?.let { modelId ->
+                                    availableModels.find { it.id == modelId }?.name ?: modelId
+                                } ?: "Select a model",
+                                onValueChange = {},
+                                readOnly = true,
+                                enabled = !isLoading,
+                                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                                )
+                            )
+
+                            ExposedDropdownMenu(
+                                expanded = modelExpanded,
+                                onDismissRequest = { modelExpanded = false }
+                            ) {
+                                availableModels.forEach { model ->
+                                    DropdownMenuItem(
+                                        text = { Text(model.name) },
+                                        onClick = {
+                                            onModelChanged(model.id)
+                                            modelExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = "No models available",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
             }
         }
     }
