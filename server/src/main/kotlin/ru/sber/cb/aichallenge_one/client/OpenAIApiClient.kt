@@ -66,6 +66,19 @@ data class TimedOpenAIResponse(
 )
 
 /**
+ * Result of sending a message, including the response text and token usage
+ *
+ * @param text The response text from the AI model
+ * @param usage Token usage information (null if not provided by API)
+ * @param responseTimeMs Response time in milliseconds
+ */
+data class OpenAIMessageResult(
+    val text: String,
+    val usage: OpenAIUsage?,
+    val responseTimeMs: Long
+)
+
+/**
  * OpenAI-compatible API client for calling OpenAI and compatible models
  * (e.g., OpenAI, Azure OpenAI, LocalAI, Ollama with OpenAI compatibility, etc.)
  *
@@ -95,13 +108,15 @@ class OpenAIApiClient(
      * @param messageHistory List of previous messages in the conversation
      * @param customSystemPrompt Custom system prompt (optional)
      * @param temperature Temperature parameter for response randomness (0.0-2.0)
-     * @return Response text from the AI model
+     * @param maxTokensOverride Override the default maxTokens for this request (optional)
+     * @return OpenAIMessageResult containing response text and token usage
      */
     suspend fun sendMessage(
         messageHistory: List<OpenAIMessage>,
         customSystemPrompt: String = "",
-        temperature: Double = 0.7
-    ): String {
+        temperature: Double = 0.7,
+        maxTokensOverride: Int? = null
+    ): OpenAIMessageResult {
         try {
             val systemPromptContent = customSystemPrompt.ifBlank {
                 "You are a helpful assistant."
@@ -117,7 +132,7 @@ class OpenAIApiClient(
                 messages = listOf(systemPrompt) + messageHistory,
                 temperature = temperature.coerceIn(0.0, 2.0),
                 top_p = topP,
-                max_tokens = maxTokens,
+                max_tokens = maxTokensOverride ?: maxTokens,
                 stream = false
             )
 
@@ -159,7 +174,9 @@ class OpenAIApiClient(
                     logger.debug("Token usage - Prompt: ${usage.promptTokens}, Completion: ${usage.completionTokens}, Total: ${usage.totalTokens}")
                 }
 
-                return responseText
+                logger.debug("Response time: ${responseTimeMs}ms")
+
+                return OpenAIMessageResult(responseText, chatResponse.usage, responseTimeMs)
             } else {
                 val errorBody = response.bodyAsText()
                 logger.error("OpenAI-compatible API error: ${response.status} - $errorBody")

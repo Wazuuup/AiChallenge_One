@@ -7,10 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import ru.sber.cb.aichallenge_one.api.ChatApi
-import ru.sber.cb.aichallenge_one.models.ChatMessage
-import ru.sber.cb.aichallenge_one.models.ModelInfo
-import ru.sber.cb.aichallenge_one.models.ResponseStatus
-import ru.sber.cb.aichallenge_one.models.SenderType
+import ru.sber.cb.aichallenge_one.models.*
 
 class ChatViewModel : ViewModel() {
     private val chatApi = ChatApi()
@@ -42,6 +39,18 @@ class ChatViewModel : ViewModel() {
     private val _isLoadingModels = MutableStateFlow(false)
     val isLoadingModels: StateFlow<Boolean> = _isLoadingModels.asStateFlow()
 
+    private val _tokenUsage = MutableStateFlow(TokenUsage())
+    val tokenUsage: StateFlow<TokenUsage> = _tokenUsage.asStateFlow()
+
+    private val _lastResponseTokenUsage = MutableStateFlow<TokenUsage?>(null)
+    val lastResponseTokenUsage: StateFlow<TokenUsage?> = _lastResponseTokenUsage.asStateFlow()
+
+    private val _responseTimeMs = MutableStateFlow<Long?>(null)
+    val responseTimeMs: StateFlow<Long?> = _responseTimeMs.asStateFlow()
+
+    private val _maxTokens = MutableStateFlow<Int?>(null)
+    val maxTokens: StateFlow<Int?> = _maxTokens.asStateFlow()
+
     init {
         // Fetch models on initialization
         fetchModels()
@@ -59,6 +68,10 @@ class ChatViewModel : ViewModel() {
         _temperature.value = value.coerceIn(0.0, 2.0)
     }
 
+    fun onMaxTokensChanged(value: Int?) {
+        _maxTokens.value = value
+    }
+
     fun onProviderChanged(provider: String) {
         _provider.value = provider
         if (provider == "gigachat") {
@@ -70,6 +83,20 @@ class ChatViewModel : ViewModel() {
     }
 
     fun onModelChanged(modelId: String) {
+        // Clear chat and reset token usage when model changes
+        if (_selectedModel.value != null && _selectedModel.value != modelId) {
+            viewModelScope.launch {
+                try {
+                    chatApi.clearHistory()
+                    _messages.value = emptyList()
+                    _tokenUsage.value = TokenUsage()
+                    _lastResponseTokenUsage.value = null
+                    _responseTimeMs.value = null
+                } catch (e: Exception) {
+                    println("Failed to clear history on model change: $e")
+                }
+            }
+        }
         _selectedModel.value = modelId
     }
 
@@ -107,7 +134,8 @@ class ChatViewModel : ViewModel() {
                     systemPrompt = _systemPrompt.value,
                     temperature = _temperature.value,
                     provider = _provider.value,
-                    model = _selectedModel.value
+                    model = _selectedModel.value,
+                    maxTokens = _maxTokens.value
                 )
 
                 val botMessage = if (response.status == ResponseStatus.SUCCESS) {
@@ -117,6 +145,17 @@ class ChatViewModel : ViewModel() {
                 }
 
                 _messages.value = _messages.value + botMessage
+
+                // Update token usage if available
+                response.tokenUsage?.let { usage ->
+                    _tokenUsage.value = usage
+                }
+
+                // Update last response token usage
+                _lastResponseTokenUsage.value = response.lastResponseTokenUsage
+
+                // Update response time
+                _responseTimeMs.value = response.responseTimeMs
             } catch (e: Exception) {
                 val errorMessage = ChatMessage(
                     "Не удалось отправить сообщение. Пожалуйста, попробуйте позже.",
@@ -134,6 +173,9 @@ class ChatViewModel : ViewModel() {
             try {
                 chatApi.clearHistory()
                 _messages.value = emptyList()
+                _tokenUsage.value = TokenUsage()
+                _lastResponseTokenUsage.value = null
+                _responseTimeMs.value = null
             } catch (e: Exception) {
                 val errorMessage = ChatMessage(
                     "Не удалось очистить историю чата.",

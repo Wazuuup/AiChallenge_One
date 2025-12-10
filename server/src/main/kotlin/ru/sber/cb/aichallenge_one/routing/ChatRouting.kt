@@ -27,7 +27,8 @@ fun Route.chatRouting() {
                     systemPrompt = request.systemPrompt,
                     temperature = request.temperature,
                     provider = request.provider,
-                    model = request.model
+                    model = request.model,
+                    maxTokens = request.maxTokens
                 )
                 call.respond(HttpStatusCode.OK, response)
             } catch (e: Exception) {

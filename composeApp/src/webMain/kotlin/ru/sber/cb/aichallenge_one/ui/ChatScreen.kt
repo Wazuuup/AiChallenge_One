@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import ru.sber.cb.aichallenge_one.models.ChatMessage
 import ru.sber.cb.aichallenge_one.models.ModelInfo
 import ru.sber.cb.aichallenge_one.models.SenderType
+import ru.sber.cb.aichallenge_one.models.TokenUsage
 import ru.sber.cb.aichallenge_one.viewmodel.ChatViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,12 +33,22 @@ fun ChatScreen() {
     val selectedModel by viewModel.selectedModel.collectAsState()
     val availableModels by viewModel.availableModels.collectAsState()
     val isLoadingModels by viewModel.isLoadingModels.collectAsState()
+    val tokenUsage by viewModel.tokenUsage.collectAsState()
+    val lastResponseTokenUsage by viewModel.lastResponseTokenUsage.collectAsState()
+    val responseTimeMs by viewModel.responseTimeMs.collectAsState()
+    val maxTokens by viewModel.maxTokens.collectAsState()
 
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
+        // Main chat interface
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        ) {
         TopAppBar(
             title = { Text("GigaChat") },
             actions = {
@@ -70,6 +81,8 @@ fun ChatScreen() {
             onModelChanged = viewModel::onModelChanged,
             availableModels = availableModels,
             isLoadingModels = isLoadingModels,
+            maxTokens = maxTokens,
+            onMaxTokensChanged = viewModel::onMaxTokensChanged,
             isLoading = isLoading,
             modifier = Modifier.fillMaxWidth()
         )
@@ -88,6 +101,29 @@ fun ChatScreen() {
             isLoading = isLoading,
             modifier = Modifier.fillMaxWidth()
         )
+        }
+
+        // Token usage sidebar
+        if (provider == "openrouter") {
+            Column(
+                modifier = Modifier
+                    .width(250.dp)
+                    .fillMaxHeight()
+            ) {
+                TokenUsageStats(
+                    tokenUsage = tokenUsage,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LastResponseTokenUsageStats(
+                    lastResponseTokenUsage = lastResponseTokenUsage,
+                    responseTimeMs = responseTimeMs,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
     }
 }
 
@@ -166,6 +202,8 @@ fun SystemPromptInput(
     onModelChanged: (String) -> Unit,
     availableModels: List<ModelInfo>,
     isLoadingModels: Boolean,
+    maxTokens: Int?,
+    onMaxTokensChanged: (Int?) -> Unit,
     isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -348,6 +386,35 @@ fun SystemPromptInput(
                             color = MaterialTheme.colorScheme.error
                         )
                     }
+
+                    // Max Tokens Input
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Max Tokens (optional)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = maxTokens?.toString() ?: "",
+                        onValueChange = { newValue ->
+                            if (newValue.isEmpty()) {
+                                onMaxTokensChanged(null)
+                            } else {
+                                newValue.toIntOrNull()?.let { onMaxTokensChanged(it) }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Enter max tokens (e.g., 1024)") },
+                        enabled = !isLoading,
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        )
+                    )
                 }
             }
         }
@@ -410,6 +477,183 @@ fun MessageInput(
                     Text("Отправить")
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun TokenUsageStats(
+    tokenUsage: TokenUsage,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shadowElevation = 4.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+        ) {
+            Text(
+                text = "Token Usage",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    StatRow(
+                        label = "Prompt Tokens:",
+                        value = tokenUsage.promptTokens.toString()
+                    )
+                    HorizontalDivider()
+                    StatRow(
+                        label = "Completion Tokens:",
+                        value = tokenUsage.completionTokens.toString()
+                    )
+                    HorizontalDivider()
+                    StatRow(
+                        label = "Total Tokens:",
+                        value = tokenUsage.totalTokens.toString(),
+                        isTotal = true
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Statistics are cumulative for the current chat session and will reset when:\n• New chat is started\n• Model is changed",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+@Composable
+fun StatRow(
+    label: String,
+    value: String,
+    isTotal: Boolean = false
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = if (isTotal) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = value,
+            style = if (isTotal) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
+            color = if (isTotal) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+fun LastResponseTokenUsageStats(
+    lastResponseTokenUsage: TokenUsage?,
+    responseTimeMs: Long?,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shadowElevation = 4.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+        ) {
+            Text(
+                text = "Last Response",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            if (lastResponseTokenUsage != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        StatRow(
+                            label = "Prompt Tokens:",
+                            value = lastResponseTokenUsage.promptTokens.toString()
+                        )
+                        HorizontalDivider()
+                        StatRow(
+                            label = "Completion Tokens:",
+                            value = lastResponseTokenUsage.completionTokens.toString()
+                        )
+                        HorizontalDivider()
+                        StatRow(
+                            label = "Total Tokens:",
+                            value = lastResponseTokenUsage.totalTokens.toString(),
+                            isTotal = true
+                        )
+
+                        if (responseTimeMs != null) {
+                            HorizontalDivider()
+                            StatRow(
+                                label = "Response Time:",
+                                value = "${responseTimeMs}ms"
+                            )
+                        }
+                    }
+                }
+            } else {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .padding(12.dp)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No response yet",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Token usage from the most recent AI response only.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
         }
     }
 }
