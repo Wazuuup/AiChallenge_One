@@ -14,7 +14,10 @@
       "Bash(cmd.exe /c \"gradlew.bat :server:build --no-configuration-cache 2>&1 | head -100\")",
       "Bash(.gradlew.bat :server:build --no-daemon)",
       "Bash(cmd.exe /c \"gradlew.bat :server:build --no-daemon\")",
-      "Bash(cmd.exe /c:*)"
+      "Bash(cmd.exe /c:*)",
+      "Bash(gradlew.bat :server:build:*)",
+      "Bash(cmd /c gradlew.bat :server:build --no-daemon)",
+      "Bash(cmd /c \"gradlew.bat :server:build --no-daemon 2>&1\")"
     ],
     "deny": [],
     "ask": []

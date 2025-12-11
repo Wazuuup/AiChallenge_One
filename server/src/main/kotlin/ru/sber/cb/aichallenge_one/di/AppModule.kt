@@ -11,6 +11,7 @@ import ru.sber.cb.aichallenge_one.client.GigaChatApiClient
 import ru.sber.cb.aichallenge_one.client.OpenAIApiClient
 import ru.sber.cb.aichallenge_one.service.ChatService
 import ru.sber.cb.aichallenge_one.service.OpenRouterModelsService
+import ru.sber.cb.aichallenge_one.service.SummarizationService
 import java.security.KeyStore
 import java.security.SecureRandom
 import javax.net.ssl.SSLContext
@@ -131,5 +132,9 @@ fun appModule(
         }
     }
 
-    single { ChatService(get(), get()) }
+    // Summarization Service (supports both GigaChat and OpenRouter)
+    single { SummarizationService(gigaChatApiClient = get(), openAIApiClient = get()) }
+
+    // Chat Service (depends on GigaChatApiClient, OpenAIApiClient, and SummarizationService)
+    single { ChatService(gigaChatApiClient = get(), openAIApiClient = get(), summarizationService = get()) }
 }
