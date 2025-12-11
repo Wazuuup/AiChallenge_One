@@ -1,169 +1,151 @@
 package ru.sber.cb.aichallenge_one.service
 
 import org.slf4j.LoggerFactory
-import ru.sber.cb.aichallenge_one.client.*
+import ru.sber.cb.aichallenge_one.client.MessageRole
+import ru.sber.cb.aichallenge_one.domain.AiClient
+import ru.sber.cb.aichallenge_one.domain.AiProvider
+import ru.sber.cb.aichallenge_one.domain.ConversationMessage
+import ru.sber.cb.aichallenge_one.domain.SummarizationConfig
 
 /**
- * Service responsible for summarizing chat message history.
- * When the message history grows too large, this service uses AI models
- * (GigaChat or OpenRouter) to create a concise summary that preserves important context.
+ * Universal service for summarizing conversation history across different AI providers.
+ * Uses the Strategy pattern with AiClient interface to support multiple providers.
+ *
+ * @param config Configuration for summarization behavior
  */
 class SummarizationService(
-    private val gigaChatApiClient: GigaChatApiClient,
-    private val openAIApiClient: OpenAIApiClient?
+    private val config: SummarizationConfig = SummarizationConfig()
 ) {
     private val logger = LoggerFactory.getLogger(SummarizationService::class.java)
 
     companion object {
-        private const val SUMMARIZATION_SYSTEM_PROMPT = """
-            Ты - ассистент для суммаризации диалогов. Твоя задача - создать краткое резюме предоставленной истории разговора.
+        // Language-specific system prompts
+        private val SYSTEM_PROMPTS = mapOf(
+            AiProvider.GIGACHAT to """
+                Ты - ассистент для суммаризации диалогов. Твоя задача - создать краткое резюме предоставленной истории разговора.
 
-            Требования к резюме:
-            1. Сохрани все ключевые факты, имена, числа и важную информацию
-            2. Объедини похожие темы в один абзац
-            3. Используй краткие, но информативные формулировки
-            4. Сохрани хронологический порядок обсуждения тем
-            5. Не добавляй информацию, которой не было в оригинале
-            6. Если был задан вопрос и дан ответ, сохрани суть обоих
+                Требования к резюме:
+                1. Сохрани все ключевые факты, имена, числа и важную информацию
+                2. Объедини похожие темы в один абзац
+                3. Используй краткие, но информативные формулировки
+                4. Сохрани хронологический порядок обсуждения тем
+                5. Не добавляй информацию, которой не было в оригинале
+                6. Если был задан вопрос и дан ответ, сохрани суть обоих
 
-            Формат ответа: напиши краткое резюме разговора в виде связного текста.
-        """
+                Формат ответа: напиши краткое резюме разговора в виде связного текста.
+            """.trimIndent(),
 
-        private const val OPENROUTER_SUMMARIZATION_SYSTEM_PROMPT = """
-            You are an assistant specialized in conversation summarization. Your task is to create a concise summary of the provided conversation history.
+            AiProvider.OPENROUTER to """
+                You are an assistant specialized in conversation summarization. Your task is to create a concise summary of the provided conversation history.
 
-            Requirements for the summary:
-            1. Preserve all key facts, names, numbers, and important information
-            2. Combine similar topics into a single paragraph
-            3. Use brief but informative formulations
-            4. Maintain chronological order of discussed topics
-            5. Do not add information that was not in the original conversation
-            6. If a question was asked and answered, preserve the essence of both
+                Requirements for the summary:
+                1. Preserve all key facts, names, numbers, and important information
+                2. Combine similar topics into a single paragraph
+                3. Use brief but informative formulations
+                4. Maintain chronological order of discussed topics
+                5. Do not add information that was not in the original conversation
+                6. If a question was asked and answered, preserve the essence of both
 
-            Output format: Write a concise summary of the conversation as coherent text.
-        """
+                Output format: Write a concise summary of the conversation as coherent text.
+            """.trimIndent()
+        )
+
+        // Language-specific summary request templates
+        private val REQUEST_TEMPLATES = mapOf(
+            AiProvider.GIGACHAT to "Пожалуйста, создай краткое резюме следующего разговора:\n\n%s",
+            AiProvider.OPENROUTER to "Please create a concise summary of the following conversation:\n\n%s"
+        )
+
+        // Language-specific summary prefixes
+        private val SUMMARY_PREFIXES = mapOf(
+            AiProvider.GIGACHAT to "[Резюме предыдущего разговора]: ",
+            AiProvider.OPENROUTER to "[Summary of previous conversation]: "
+        )
     }
 
     /**
-     * Summarizes the provided message history into a condensed version.
+     * Summarizes conversation history using the provided AI client.
+     * This is a universal method that works with any AI provider implementing AiClient interface.
      *
+     * @param T The message type (must implement ConversationMessage)
      * @param messageHistory The list of messages to summarize
-     * @return A single GigaChatMessage containing the summary with USER role
+     * @param aiClient The AI client to use for summarization
+     * @return A single message containing the summary
+     * @throws SummarizationException if summarization fails
      */
-    suspend fun summarizeHistory(messageHistory: List<GigaChatMessage>): GigaChatMessage {
-        logger.info("Starting summarization of ${messageHistory.size} messages")
+    suspend fun <T : ConversationMessage> summarize(
+        messageHistory: List<T>,
+        aiClient: AiClient<T>
+    ): T {
+        val provider = aiClient.getProvider()
+        logger.info("Starting ${provider.displayName} summarization of ${messageHistory.size} messages")
 
         try {
-            // Convert message history to a readable format for summarization
-            val conversationText = buildConversationText(messageHistory)
+            // Build conversation text for summarization
+            val conversationText = buildConversationText(messageHistory, aiClient)
 
-            // Create a temporary history with just the conversation text
-            val tempHistory = listOf(
-                GigaChatMessage(
-                    role = MessageRole.USER.value,
-                    content = "Пожалуйста, создай краткое резюме следующего разговора:\n\n$conversationText"
-                )
-            )
+            // Get language-specific templates
+            val systemPrompt = SYSTEM_PROMPTS[provider]
+                ?: throw SummarizationException("No system prompt configured for provider: $provider")
 
-            // Get summary from GigaChat
-            val summary = gigaChatApiClient.sendMessage(
+            val requestTemplate = REQUEST_TEMPLATES[provider]
+                ?: throw SummarizationException("No request template configured for provider: $provider")
+
+            val summaryPrefix = SUMMARY_PREFIXES[provider] ?: config.summaryPrefix
+
+            // Create temporary history with summarization request
+            val request = String.format(requestTemplate, conversationText)
+            val tempHistory = listOf(aiClient.createMessage(MessageRole.USER.value, request))
+
+            // Get summary from AI
+            val summary = aiClient.sendMessage(
                 messageHistory = tempHistory,
-                customSystemPrompt = SUMMARIZATION_SYSTEM_PROMPT,
-                temperature = 0.3 // Lower temperature for more consistent summarization
+                systemPrompt = systemPrompt,
+                temperature = config.temperature
             )
 
-            logger.info("Successfully generated summary: ${summary.take(100)}...")
+            logger.info("Successfully generated ${provider.displayName} summary: ${summary.take(100)}...")
 
-            // Return the summary as a USER message to maintain conversation flow
-            return GigaChatMessage(
+            // Return summary as a USER message to maintain conversation flow
+            return aiClient.createMessage(
                 role = MessageRole.USER.value,
-                content = "[Резюме предыдущего разговора]: $summary"
+                content = "$summaryPrefix$summary"
             )
         } catch (e: Exception) {
-            logger.error("Error during summarization", e)
-            throw SummarizationException("Failed to summarize message history: ${e.message}", e)
+            logger.error("Error during ${aiClient.getProvider().displayName} summarization", e)
+            throw SummarizationException(
+                "Failed to summarize message history for ${aiClient.getProvider().displayName}: ${e.message}",
+                e
+            )
         }
     }
 
     /**
      * Builds a readable text representation of the conversation history.
+     * Uses provider-specific role names for better localization.
      */
-    private fun buildConversationText(messageHistory: List<GigaChatMessage>): String {
+    private fun <T : ConversationMessage> buildConversationText(
+        messageHistory: List<T>,
+        aiClient: AiClient<T>
+    ): String {
         return messageHistory.joinToString("\n\n") { message ->
-            val roleName = when (message.role) {
-                MessageRole.USER.value -> "Пользователь"
-                MessageRole.ASSISTANT.value -> "Ассистент"
-                MessageRole.SYSTEM.value -> "Система"
-                else -> message.role
-            }
+            val roleName = aiClient.getLocalizedRoleName(message.role)
             "$roleName: ${message.content}"
         }
     }
 
     /**
-     * Summarizes the provided OpenRouter message history into a condensed version.
+     * Checks if summarization should be triggered based on message count.
      *
-     * @param messageHistory The list of OpenAI messages to summarize
-     * @return A single OpenAIMessage containing the summary with USER role
-     * @throws SummarizationException if OpenAI client is not configured or summarization fails
+     * @param messageCount Current number of messages
+     * @return true if summarization threshold is reached
      */
-    suspend fun summarizeOpenRouterHistory(messageHistory: List<OpenAIMessage>): OpenAIMessage {
-        if (openAIApiClient == null) {
-            logger.error("OpenAI API client is not configured, cannot summarize OpenRouter history")
-            throw SummarizationException("OpenRouter client is not configured")
-        }
-
-        logger.info("Starting OpenRouter summarization of ${messageHistory.size} messages")
-
-        try {
-            // Convert message history to a readable format for summarization
-            val conversationText = buildOpenRouterConversationText(messageHistory)
-
-            // Create a temporary history with just the conversation text
-            val tempHistory = listOf(
-                OpenAIMessage(
-                    role = MessageRole.USER.value,
-                    content = "Please create a concise summary of the following conversation:\n\n$conversationText"
-                )
-            )
-
-            // Get summary from OpenRouter/OpenAI
-            val result = openAIApiClient.sendMessage(
-                messageHistory = tempHistory,
-                customSystemPrompt = OPENROUTER_SUMMARIZATION_SYSTEM_PROMPT,
-                temperature = 0.3 // Lower temperature for more consistent summarization
-            )
-
-            logger.info("Successfully generated OpenRouter summary: ${result.text.take(100)}...")
-
-            // Return the summary as a USER message to maintain conversation flow
-            return OpenAIMessage(
-                role = MessageRole.USER.value,
-                content = "[Summary of previous conversation]: ${result.text}"
-            )
-        } catch (e: Exception) {
-            logger.error("Error during OpenRouter summarization", e)
-            throw SummarizationException("Failed to summarize OpenRouter message history: ${e.message}", e)
-        }
-    }
-
-    /**
-     * Builds a readable text representation of the OpenRouter conversation history.
-     */
-    private fun buildOpenRouterConversationText(messageHistory: List<OpenAIMessage>): String {
-        return messageHistory.joinToString("\n\n") { message ->
-            val roleName = when (message.role) {
-                MessageRole.USER.value -> "User"
-                MessageRole.ASSISTANT.value -> "Assistant"
-                MessageRole.SYSTEM.value -> "System"
-                else -> message.role
-            }
-            "$roleName: ${message.content}"
-        }
+    fun shouldSummarize(messageCount: Int): Boolean {
+        return messageCount >= config.threshold
     }
 }
 
 /**
- * Exception thrown when summarization fails
+ * Exception thrown when summarization fails.
  */
 class SummarizationException(message: String, cause: Throwable? = null) : Exception(message, cause)

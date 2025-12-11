@@ -9,6 +9,7 @@ import kotlinx.serialization.json.Json
 import org.koin.dsl.module
 import ru.sber.cb.aichallenge_one.client.GigaChatApiClient
 import ru.sber.cb.aichallenge_one.client.OpenAIApiClient
+import ru.sber.cb.aichallenge_one.domain.SummarizationConfig
 import ru.sber.cb.aichallenge_one.service.ChatService
 import ru.sber.cb.aichallenge_one.service.OpenRouterModelsService
 import ru.sber.cb.aichallenge_one.service.SummarizationService
@@ -132,9 +133,24 @@ fun appModule(
         }
     }
 
-    // Summarization Service (supports both GigaChat and OpenRouter)
-    single { SummarizationService(gigaChatApiClient = get(), openAIApiClient = get()) }
+    // Summarization Configuration
+    single {
+        SummarizationConfig(
+            threshold = 10,           // Summarize every 10 messages
+            temperature = 0.3,        // Low temperature for consistent summaries
+            summaryPrefix = "[Summary of previous conversation]"
+        )
+    }
 
-    // Chat Service (depends on GigaChatApiClient, OpenAIApiClient, and SummarizationService)
-    single { ChatService(gigaChatApiClient = get(), openAIApiClient = get(), summarizationService = get()) }
+    // Summarization Service - Universal, provider-agnostic
+    single { SummarizationService(config = get()) }
+
+    // Chat Service - Refactored with Strategy pattern
+    single {
+        ChatService(
+            gigaChatApiClient = get(),
+            openAIApiClient = get(),
+            summarizationService = get()
+        )
+    }
 }

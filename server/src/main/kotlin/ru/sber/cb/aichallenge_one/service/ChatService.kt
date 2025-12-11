@@ -1,34 +1,69 @@
 package ru.sber.cb.aichallenge_one.service
 
 import org.slf4j.LoggerFactory
-import ru.sber.cb.aichallenge_one.client.*
+import ru.sber.cb.aichallenge_one.client.GigaChatApiClient
+import ru.sber.cb.aichallenge_one.client.GigaChatClientAdapter
+import ru.sber.cb.aichallenge_one.client.GigaChatMessage
+import ru.sber.cb.aichallenge_one.client.OpenAIApiClient
+import ru.sber.cb.aichallenge_one.domain.AiProvider
 import ru.sber.cb.aichallenge_one.models.ChatResponse
 import ru.sber.cb.aichallenge_one.models.ResponseStatus
 import ru.sber.cb.aichallenge_one.models.TokenUsage
 
+/**
+ * Refactored ChatService using Strategy pattern with ProviderHandlers.
+ * Cleanly separates provider-specific logic while maintaining shared functionality.
+ *
+ * Key improvements:
+ * - Eliminated code duplication through ProviderHandler abstraction
+ * - Clean separation of concerns (routing, history, summarization)
+ * - Specialized handlers for provider-specific features (e.g., token tracking for OpenRouter)
+ * - Easy to extend with new providers
+ *
+ * @param gigaChatApiClient GigaChat API client
+ * @param openAIApiClient OpenRouter/OpenAI API client (optional)
+ * @param summarizationService Universal summarization service
+ */
 class ChatService(
-    val gigaChatApiClient: GigaChatApiClient,
-    val openAIApiClient: OpenAIApiClient?,
-    val summarizationService: SummarizationService
+    gigaChatApiClient: GigaChatApiClient,
+    openAIApiClient: OpenAIApiClient?,
+    summarizationService: SummarizationService
 ) {
     private val logger = LoggerFactory.getLogger(ChatService::class.java)
-    private val gigaChatHistory = mutableListOf<GigaChatMessage>()
-    private val openRouterHistory = mutableListOf<OpenAIMessage>()
 
-    // Message count tracking for summarization
-    private var gigaChatMessageCount = 0
-    private var openRouterMessageCount = 0
+    // Provider handlers
+    private val gigaChatHandler: ProviderHandler<GigaChatMessage>
+    private val openRouterHandler: OpenRouterProviderHandler?
 
-    // Token usage tracking for OpenRouter
+    // OpenRouter-specific state
     private var cumulativePromptTokens = 0
     private var cumulativeCompletionTokens = 0
     private var cumulativeTotalTokens = 0
     private var currentModel: String? = null
 
-    companion object {
-        private const val SUMMARIZATION_THRESHOLD = 10 // Summarize every 10 messages
+    init {
+        // Initialize GigaChat handler
+        val gigaChatAdapter = GigaChatClientAdapter(gigaChatApiClient)
+        gigaChatHandler = ProviderHandler(AiProvider.GIGACHAT, gigaChatAdapter, summarizationService)
+
+        // Initialize OpenRouter handler if available
+        openRouterHandler = openAIApiClient?.let { client ->
+            OpenRouterProviderHandler(client, summarizationService)
+        }
     }
 
+    /**
+     * Process a user message and return AI response.
+     * Automatically routes to the appropriate provider.
+     *
+     * @param userText User's message
+     * @param systemPrompt Optional system prompt
+     * @param temperature Response randomness (0.0-2.0)
+     * @param provider Provider name ("gigachat" or "openrouter")
+     * @param model Model name (OpenRouter only)
+     * @param maxTokens Max response tokens (OpenRouter only)
+     * @return ChatResponse with AI reply and metadata
+     */
     suspend fun processUserMessage(
         userText: String,
         systemPrompt: String = "",
@@ -38,111 +73,12 @@ class ChatService(
         maxTokens: Int? = null
     ): ChatResponse {
         return try {
-            logger.info("Processing user message: $userText with temperature: $temperature, provider: $provider, model: $model")
+            val aiProvider = AiProvider.fromString(provider)
+            logger.info("Processing message [provider=${aiProvider.displayName}, temperature=$temperature, model=$model]")
 
-            if (provider == "openrouter") {
-                // Use OpenRouter (OpenAI-compatible API)
-                if (openAIApiClient == null) {
-                    logger.error("OpenRouter client not configured")
-                    return ChatResponse(
-                        "OpenRouter не настроен. Пожалуйста, настройте OpenAI API в конфигурации сервера.",
-                        ResponseStatus.ERROR
-                    )
-                }
-
-                // Check if model has changed - if so, reset token usage and history
-                if (model != null && currentModel != model) {
-                    logger.info("Model changed from $currentModel to $model. Resetting token usage and history.")
-                    resetTokenUsage()
-                    openRouterHistory.clear()
-                    openRouterMessageCount = 0
-                    currentModel = model
-                }
-
-                // Add user message to history
-                openRouterHistory.add(OpenAIMessage(role = MessageRole.USER.value, content = userText))
-                openRouterMessageCount++
-
-                // Check if summarization is needed (every 10 messages sent to LLM)
-                if (openRouterMessageCount >= SUMMARIZATION_THRESHOLD) {
-                    logger.info("OpenRouter message threshold reached ($openRouterMessageCount messages). Triggering summarization...")
-                    try {
-                        val summary = summarizationService.summarizeOpenRouterHistory(openRouterHistory)
-                        openRouterHistory.clear()
-                        openRouterHistory.add(summary)
-                        openRouterMessageCount = 0
-                        logger.info("Successfully summarized OpenRouter history. New history size: ${openRouterHistory.size}")
-                    } catch (e: Exception) {
-                        logger.error("OpenRouter summarization failed, continuing with full history", e)
-                        // Continue with full history if summarization fails
-                    }
-                }
-
-                // Send to OpenRouter
-                val result = openAIApiClient.sendMessage(openRouterHistory, systemPrompt, temperature, maxTokens)
-                logger.info("Received response from OpenRouter")
-
-                // Add assistant response to history
-                openRouterHistory.add(OpenAIMessage(role = MessageRole.ASSISTANT.value, content = result.text))
-
-                // Track last response token usage
-                val lastResponseTokenUsage = result.usage?.let { usage ->
-                    TokenUsage(
-                        promptTokens = usage.promptTokens,
-                        completionTokens = usage.completionTokens,
-                        totalTokens = usage.totalTokens
-                    )
-                }
-
-                // Accumulate token usage
-                result.usage?.let { usage ->
-                    cumulativePromptTokens += usage.promptTokens
-                    cumulativeCompletionTokens += usage.completionTokens
-                    cumulativeTotalTokens += usage.totalTokens
-                    logger.debug("Cumulative token usage - Prompt: $cumulativePromptTokens, Completion: $cumulativeCompletionTokens, Total: $cumulativeTotalTokens")
-                }
-
-                val cumulativeTokenUsage = TokenUsage(
-                    promptTokens = cumulativePromptTokens,
-                    completionTokens = cumulativeCompletionTokens,
-                    totalTokens = cumulativeTotalTokens
-                )
-
-                logger.debug("Response time: ${result.responseTimeMs}ms")
-
-                ChatResponse(
-                    text = result.text,
-                    status = ResponseStatus.SUCCESS,
-                    tokenUsage = cumulativeTokenUsage,
-                    lastResponseTokenUsage = lastResponseTokenUsage,
-                    responseTimeMs = result.responseTimeMs
-                )
-            } else {
-                // Use GigaChat (default)
-                gigaChatHistory.add(GigaChatMessage(role = MessageRole.USER.value, content = userText))
-                gigaChatMessageCount++
-
-                // Check if summarization is needed (every 10 messages sent to LLM)
-                if (gigaChatMessageCount >= SUMMARIZATION_THRESHOLD) {
-                    logger.info("Message threshold reached ($gigaChatMessageCount messages). Triggering summarization...")
-                    try {
-                        val summary = summarizationService.summarizeHistory(gigaChatHistory)
-                        gigaChatHistory.clear()
-                        gigaChatHistory.add(summary)
-                        gigaChatMessageCount = 0
-                        logger.info("Successfully summarized history. New history size: ${gigaChatHistory.size}")
-                    } catch (e: Exception) {
-                        logger.error("Summarization failed, continuing with full history", e)
-                        // Continue with full history if summarization fails
-                    }
-                }
-
-                val response = gigaChatApiClient.sendMessage(gigaChatHistory, systemPrompt, temperature)
-                logger.info("Received response from GigaChat")
-
-                gigaChatHistory.add(GigaChatMessage(role = MessageRole.ASSISTANT.value, content = response))
-
-                ChatResponse(response, ResponseStatus.SUCCESS)
+            when (aiProvider) {
+                AiProvider.GIGACHAT -> processGigaChatMessage(userText, systemPrompt, temperature)
+                AiProvider.OPENROUTER -> processOpenRouterMessage(userText, systemPrompt, temperature, model, maxTokens)
             }
         } catch (e: Exception) {
             logger.error("Error processing user message", e)
@@ -150,16 +86,96 @@ class ChatService(
         }
     }
 
+    /**
+     * Process message using GigaChat.
+     */
+    private suspend fun processGigaChatMessage(
+        userText: String,
+        systemPrompt: String,
+        temperature: Double
+    ): ChatResponse {
+        val response = gigaChatHandler.processMessage(userText, systemPrompt, temperature)
+        return ChatResponse(response, ResponseStatus.SUCCESS)
+    }
+
+    /**
+     * Process message using OpenRouter with token tracking.
+     */
+    private suspend fun processOpenRouterMessage(
+        userText: String,
+        systemPrompt: String,
+        temperature: Double,
+        model: String?,
+        maxTokens: Int?
+    ): ChatResponse {
+        // Validate OpenRouter is configured
+        if (openRouterHandler == null) {
+            logger.error("OpenRouter client not configured")
+            return ChatResponse(
+                "OpenRouter не настроен. Пожалуйста, настройте OpenAI API в конфигурации сервера.",
+                ResponseStatus.ERROR
+            )
+        }
+
+        // Handle model changes
+        if (model != null && currentModel != model) {
+            logger.info("Model changed from $currentModel to $model. Resetting state.")
+            openRouterHandler.clearHistory()
+            resetTokenUsage()
+            currentModel = model
+        }
+
+        // Process with metadata
+        val result = openRouterHandler.processMessageWithMetadata(userText, systemPrompt, temperature)
+
+        // Track last response tokens
+        val lastResponseTokenUsage = result.usage?.let { usage ->
+            TokenUsage(
+                promptTokens = usage.promptTokens,
+                completionTokens = usage.completionTokens,
+                totalTokens = usage.totalTokens
+            )
+        }
+
+        // Accumulate token usage
+        result.usage?.let { usage ->
+            cumulativePromptTokens += usage.promptTokens
+            cumulativeCompletionTokens += usage.completionTokens
+            cumulativeTotalTokens += usage.totalTokens
+            logger.debug("Cumulative tokens - Prompt: $cumulativePromptTokens, Completion: $cumulativeCompletionTokens, Total: $cumulativeTotalTokens")
+        }
+
+        val cumulativeTokenUsage = TokenUsage(
+            promptTokens = cumulativePromptTokens,
+            completionTokens = cumulativeCompletionTokens,
+            totalTokens = cumulativeTotalTokens
+        )
+
+        logger.debug("Response time: ${result.responseTimeMs}ms")
+
+        return ChatResponse(
+            text = result.text,
+            status = ResponseStatus.SUCCESS,
+            tokenUsage = cumulativeTokenUsage,
+            lastResponseTokenUsage = lastResponseTokenUsage,
+            responseTimeMs = result.responseTimeMs
+        )
+    }
+
+    /**
+     * Clear all conversation histories and reset state.
+     */
     fun clearHistory() {
-        logger.info("Clearing message history")
-        gigaChatHistory.clear()
-        openRouterHistory.clear()
-        gigaChatMessageCount = 0
-        openRouterMessageCount = 0
+        logger.info("Clearing all message histories")
+        gigaChatHandler.clearHistory()
+        openRouterHandler?.clearHistory()
         resetTokenUsage()
         currentModel = null
     }
 
+    /**
+     * Reset cumulative token usage counters.
+     */
     private fun resetTokenUsage() {
         logger.info("Resetting token usage")
         cumulativePromptTokens = 0

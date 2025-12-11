@@ -7,6 +7,7 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
+import ru.sber.cb.aichallenge_one.domain.ConversationMessage
 import java.util.*
 
 enum class MessageRole(val value: String) {
@@ -15,11 +16,12 @@ enum class MessageRole(val value: String) {
     ASSISTANT("assistant"),
     FUNCTION("function");
 }
+
 @Serializable
 data class GigaChatMessage(
-    val role: String,
-    val content: String
-)
+    override val role: String,
+    override val content: String
+) : ConversationMessage
 
 @Serializable
 data class GigaChatRequest(

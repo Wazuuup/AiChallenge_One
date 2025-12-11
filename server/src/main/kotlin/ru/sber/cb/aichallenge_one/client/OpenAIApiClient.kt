@@ -8,12 +8,13 @@ import io.ktor.http.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
+import ru.sber.cb.aichallenge_one.domain.ConversationMessage
 
 @Serializable
 data class OpenAIMessage(
-    val role: String,
-    val content: String
-)
+    override val role: String,
+    override val content: String
+) : ConversationMessage
 
 @Serializable
 data class OpenAIRequest(
