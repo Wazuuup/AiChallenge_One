@@ -1,18 +1,26 @@
 package ru.sber.cb.aichallenge_one.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
+import androidx.compose.animation.*
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.ChatBubble
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ru.sber.cb.aichallenge_one.models.ChatMessage
 import ru.sber.cb.aichallenge_one.models.ModelInfo
@@ -20,9 +28,21 @@ import ru.sber.cb.aichallenge_one.models.SenderType
 import ru.sber.cb.aichallenge_one.models.TokenUsage
 import ru.sber.cb.aichallenge_one.viewmodel.ChatViewModel
 
+/**
+ * Main Chat Screen with Material Design 3 components.
+ * Features:
+ * - Enhanced visual hierarchy with proper elevation
+ * - Smooth animations and transitions
+ * - Dark/Light theme toggle
+ * - Responsive layout with sidebar for OpenRouter stats
+ * - FAB for quick actions
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen() {
+fun ChatScreen(
+    isDarkTheme: Boolean,
+    onThemeToggle: () -> Unit
+) {
     val viewModel = remember { ChatViewModel() }
     val messages by viewModel.messages.collectAsState()
     val inputText by viewModel.inputText.collectAsState()
@@ -38,95 +58,191 @@ fun ChatScreen() {
     val responseTimeMs by viewModel.responseTimeMs.collectAsState()
     val maxTokens by viewModel.maxTokens.collectAsState()
 
-    Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        // Main chat interface
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-        ) {
-        TopAppBar(
-            title = { Text("GigaChat") },
-            actions = {
-                Button(
-                    onClick = { viewModel.clearChat() },
-                    enabled = !isLoading,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary,
-                        contentColor = MaterialTheme.colorScheme.onSecondary
-                    ),
-                    modifier = Modifier.padding(end = 8.dp)
-                ) {
-                    Text("Новый чат")
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                titleContentColor = MaterialTheme.colorScheme.onPrimary
+    var showSettings by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = {
+            EnhancedTopAppBar(
+                isDarkTheme = isDarkTheme,
+                onThemeToggle = onThemeToggle,
+                onSettingsClick = { showSettings = !showSettings },
+                onNewChat = { viewModel.clearChat() },
+                isLoading = isLoading
             )
-        )
-
-        SystemPromptInput(
-            systemPrompt = systemPrompt,
-            onSystemPromptChanged = viewModel::onSystemPromptChanged,
-            temperature = temperature,
-            onTemperatureChanged = viewModel::onTemperatureChanged,
-            provider = provider,
-            onProviderChanged = viewModel::onProviderChanged,
-            selectedModel = selectedModel,
-            onModelChanged = viewModel::onModelChanged,
-            availableModels = availableModels,
-            isLoadingModels = isLoadingModels,
-            maxTokens = maxTokens,
-            onMaxTokensChanged = viewModel::onMaxTokensChanged,
-            isLoading = isLoading,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        MessageList(
-            messages = messages,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        )
-
-        MessageInput(
-            inputText = inputText,
-            onInputChanged = viewModel::onInputChanged,
-            onSendMessage = viewModel::sendMessage,
-            isLoading = isLoading,
-            modifier = Modifier.fillMaxWidth()
-        )
+        },
+        floatingActionButton = {
+            if (inputText.isNotBlank() && !isLoading) {
+                ExtendedFloatingActionButton(
+                    onClick = { viewModel.sendMessage() },
+                    icon = { Icon(Icons.Filled.Send, "Send message") },
+                    text = { Text("Отправить") },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
         }
-
-        // Token usage sidebar
-        if (provider == "openrouter") {
+    ) { paddingValues ->
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // Main chat interface
             Column(
                 modifier = Modifier
-                    .width(250.dp)
+                    .weight(1f)
                     .fillMaxHeight()
             ) {
-                TokenUsageStats(
-                    tokenUsage = tokenUsage,
-                    modifier = Modifier.fillMaxWidth()
+                // Settings Panel (collapsible)
+                AnimatedVisibility(
+                    visible = showSettings,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    SystemPromptInput(
+                        systemPrompt = systemPrompt,
+                        onSystemPromptChanged = viewModel::onSystemPromptChanged,
+                        temperature = temperature,
+                        onTemperatureChanged = viewModel::onTemperatureChanged,
+                        provider = provider,
+                        onProviderChanged = viewModel::onProviderChanged,
+                        selectedModel = selectedModel,
+                        onModelChanged = viewModel::onModelChanged,
+                        availableModels = availableModels,
+                        isLoadingModels = isLoadingModels,
+                        maxTokens = maxTokens,
+                        onMaxTokensChanged = viewModel::onMaxTokensChanged,
+                        isLoading = isLoading,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // Message List
+                MessageList(
+                    messages = messages,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                LastResponseTokenUsageStats(
-                    lastResponseTokenUsage = lastResponseTokenUsage,
-                    responseTimeMs = responseTimeMs,
+                // Message Input
+                MessageInput(
+                    inputText = inputText,
+                    onInputChanged = viewModel::onInputChanged,
+                    onSendMessage = viewModel::sendMessage,
+                    isLoading = isLoading,
                     modifier = Modifier.fillMaxWidth()
                 )
+            }
+
+            // Token usage sidebar (only for OpenRouter)
+            AnimatedVisibility(
+                visible = provider == "openrouter",
+                enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .width(280.dp)
+                        .fillMaxHeight(),
+                    tonalElevation = 1.dp
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        TokenUsageStats(
+                            tokenUsage = tokenUsage,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        LastResponseTokenUsageStats(
+                            lastResponseTokenUsage = lastResponseTokenUsage,
+                            responseTimeMs = responseTimeMs,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
             }
         }
     }
 }
 
+/**
+ * Enhanced Material Design 3 Top App Bar.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EnhancedTopAppBar(
+    isDarkTheme: Boolean,
+    onThemeToggle: () -> Unit,
+    onSettingsClick: () -> Unit,
+    onNewChat: () -> Unit,
+    isLoading: Boolean
+) {
+    TopAppBar(
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Chat,
+                    contentDescription = "GigaChat",
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
+                Text(
+                    "GigaChat",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        actions = {
+            // Theme toggle
+            IconButton(onClick = onThemeToggle) {
+                Icon(
+                    if (isDarkTheme) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
+                    contentDescription = "Toggle theme",
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+
+            // Settings toggle
+            IconButton(onClick = onSettingsClick) {
+                Icon(
+                    Icons.Filled.Settings,
+                    contentDescription = "Settings",
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+
+            // New chat button
+            FilledTonalButton(
+                onClick = onNewChat,
+                enabled = !isLoading,
+                modifier = Modifier.padding(end = 8.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Новый чат")
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    )
+}
+
+/**
+ * Message list with smooth scrolling and animations.
+ */
 @Composable
 fun MessageList(
     messages: List<ChatMessage>,
@@ -140,45 +256,137 @@ fun MessageList(
         }
     }
 
-    LazyColumn(
-        state = listState,
-        modifier = modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(messages) { message ->
-            MessageBubble(message)
+    if (messages.isEmpty()) {
+        EmptyState(modifier = modifier)
+    } else {
+        LazyColumn(
+            state = listState,
+            modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(messages, key = { it.hashCode() }) { message ->
+                AnimatedMessageBubble(message)
+            }
+            // Extra space for FAB
+            item {
+                Spacer(modifier = Modifier.height(80.dp))
+            }
         }
     }
 }
 
+/**
+ * Empty state when no messages.
+ */
+@Composable
+fun EmptyState(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(
+                Icons.Outlined.ChatBubble,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+            )
+            Text(
+                "Начните разговор",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                "Отправьте сообщение, чтобы начать диалог с AI",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+/**
+ * Animated message bubble with enhanced MD3 styling.
+ */
+@Composable
+fun AnimatedMessageBubble(message: ChatMessage) {
+    val enterTransition = remember {
+        slideInHorizontally(
+            initialOffsetX = { if (message.sender == SenderType.USER) it else -it },
+            animationSpec = spring(stiffness = Spring.StiffnessLow)
+        ) + fadeIn()
+    }
+
+    AnimatedVisibility(
+        visible = true,
+        enter = enterTransition
+    ) {
+        MessageBubble(message)
+    }
+}
+
+/**
+ * Message bubble component.
+ */
 @Composable
 fun MessageBubble(message: ChatMessage) {
+    val isUser = message.sender == SenderType.USER
+
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (message.sender == SenderType.USER) {
-            Arrangement.End
-        } else {
-            Arrangement.Start
-        }
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
-        Card(
+        if (!isUser) {
+            // AI Avatar
+            Surface(
+                modifier = Modifier
+                    .size(40.dp)
+                    .align(Alignment.Bottom),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.tertiaryContainer
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Filled.SmartToy,
+                        contentDescription = "AI",
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+        }
+
+        ElevatedCard(
             modifier = Modifier
                 .widthIn(max = 600.dp)
-                .padding(4.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = if (message.sender == SenderType.USER) {
+                .padding(vertical = 4.dp),
+            shape = RoundedCornerShape(
+                topStart = 20.dp,
+                topEnd = 20.dp,
+                bottomStart = if (isUser) 20.dp else 4.dp,
+                bottomEnd = if (isUser) 4.dp else 20.dp
+            ),
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = if (isUser) {
                     MaterialTheme.colorScheme.primaryContainer
                 } else {
                     MaterialTheme.colorScheme.secondaryContainer
                 }
+            ),
+            elevation = CardDefaults.elevatedCardElevation(
+                defaultElevation = 2.dp
             )
         ) {
             SelectionContainer {
                 Text(
                     text = message.text,
-                    modifier = Modifier.padding(12.dp),
-                    color = if (message.sender == SenderType.USER) {
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (isUser) {
                         MaterialTheme.colorScheme.onPrimaryContainer
                     } else {
                         MaterialTheme.colorScheme.onSecondaryContainer
@@ -186,9 +394,33 @@ fun MessageBubble(message: ChatMessage) {
                 )
             }
         }
+
+        if (isUser) {
+            Spacer(Modifier.width(8.dp))
+            // User Avatar
+            Surface(
+                modifier = Modifier
+                    .size(40.dp)
+                    .align(Alignment.Bottom),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Filled.Person,
+                        contentDescription = "User",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
     }
 }
 
+/**
+ * Enhanced Settings Panel with MD3 styling.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SystemPromptInput(
@@ -207,84 +439,30 @@ fun SystemPromptInput(
     isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    ElevatedCard(
         modifier = modifier,
-        shadowElevation = 4.dp,
-        color = MaterialTheme.colorScheme.surfaceVariant
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth()
+                .padding(20.dp)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Системный промпт",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-            OutlinedTextField(
-                value = systemPrompt,
-                onValueChange = onSystemPromptChanged,
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Введите системный промпт (опционально)...") },
-                enabled = !isLoading,
-                maxLines = 3,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                )
+                "Настройки",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
-
+            // API Provider
             Text(
-                text = "Temperature: ${temperature.toString().take(4)}",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 4.dp)
+                "API Provider",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Slider(
-                    value = temperature.toFloat(),
-                    onValueChange = { onTemperatureChanged(it.toDouble()) },
-                    valueRange = 0f..2f,
-                    steps = 19,
-                    enabled = !isLoading,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                OutlinedTextField(
-                    value = temperature.toString().take(4),
-                    onValueChange = { newValue ->
-                        newValue.toDoubleOrNull()?.let { onTemperatureChanged(it) }
-                    },
-                    modifier = Modifier.width(80.dp),
-                    enabled = !isLoading,
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // API Provider Selector
-            Text(
-                text = "API Provider",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-
             var providerExpanded by remember { mutableStateOf(false) }
-
             ExposedDropdownMenuBox(
                 expanded = providerExpanded,
                 onExpandedChange = { providerExpanded = !providerExpanded && !isLoading }
@@ -295,13 +473,8 @@ fun SystemPromptInput(
                     readOnly = true,
                     enabled = !isLoading,
                     modifier = Modifier.fillMaxWidth().menuAnchor(),
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                    )
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded) }
                 )
-
                 ExposedDropdownMenu(
                     expanded = providerExpanded,
                     onDismissRequest = { providerExpanded = false }
@@ -323,20 +496,14 @@ fun SystemPromptInput(
                 }
             }
 
-            // Model Selector (only show for OpenRouter)
+            // Model Selector (OpenRouter only)
             AnimatedVisibility(visible = provider == "openrouter") {
-                Column {
-                    Spacer(modifier = Modifier.height(12.dp))
-
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "Model",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        "Model",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
-                    var modelExpanded by remember { mutableStateOf(false) }
-
                     if (isLoadingModels) {
                         Box(
                             modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -345,6 +512,7 @@ fun SystemPromptInput(
                             CircularProgressIndicator(modifier = Modifier.size(24.dp))
                         }
                     } else if (availableModels.isNotEmpty()) {
+                        var modelExpanded by remember { mutableStateOf(false) }
                         ExposedDropdownMenuBox(
                             expanded = modelExpanded,
                             onExpandedChange = { modelExpanded = !modelExpanded && !isLoading }
@@ -357,13 +525,8 @@ fun SystemPromptInput(
                                 readOnly = true,
                                 enabled = !isLoading,
                                 modifier = Modifier.fillMaxWidth().menuAnchor(),
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                                )
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) }
                             )
-
                             ExposedDropdownMenu(
                                 expanded = modelExpanded,
                                 onDismissRequest = { modelExpanded = false }
@@ -379,48 +542,82 @@ fun SystemPromptInput(
                                 }
                             }
                         }
-                    } else {
-                        Text(
-                            text = "No models available",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
                     }
 
-                    // Max Tokens Input
-                    Spacer(modifier = Modifier.height(12.dp))
-
+                    // Max Tokens
                     Text(
-                        text = "Max Tokens (optional)",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        "Max Tokens (optional)",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
                     OutlinedTextField(
                         value = maxTokens?.toString() ?: "",
                         onValueChange = { newValue ->
-                            if (newValue.isEmpty()) {
-                                onMaxTokensChanged(null)
-                            } else {
-                                newValue.toIntOrNull()?.let { onMaxTokensChanged(it) }
-                            }
+                            if (newValue.isEmpty()) onMaxTokensChanged(null)
+                            else newValue.toIntOrNull()?.let { onMaxTokensChanged(it) }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Enter max tokens (e.g., 1024)") },
+                        placeholder = { Text("e.g., 1024") },
                         enabled = !isLoading,
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                        )
+                        singleLine = true
                     )
                 }
+            }
+
+            HorizontalDivider()
+
+            // System Prompt
+            Text(
+                "Системный промпт",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedTextField(
+                value = systemPrompt,
+                onValueChange = onSystemPromptChanged,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Введите системный промпт...") },
+                enabled = !isLoading,
+                maxLines = 3,
+                minLines = 2
+            )
+
+            // Temperature
+            Text(
+                "Temperature: ${temperature.toString().take(4)}",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Slider(
+                    value = temperature.toFloat(),
+                    onValueChange = { onTemperatureChanged(it.toDouble()) },
+                    valueRange = 0f..2f,
+                    steps = 19,
+                    enabled = !isLoading,
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedTextField(
+                    value = temperature.toString().take(4),
+                    onValueChange = { newValue ->
+                        newValue.toDoubleOrNull()?.let { onTemperatureChanged(it) }
+                    },
+                    modifier = Modifier.width(90.dp),
+                    enabled = !isLoading,
+                    singleLine = true
+                )
             }
         }
     }
 }
 
+/**
+ * Enhanced Message Input with MD3 styling.
+ */
 @Composable
 fun MessageInput(
     inputText: String,
@@ -431,110 +628,75 @@ fun MessageInput(
 ) {
     Surface(
         modifier = modifier,
-        shadowElevation = 8.dp,
-        color = MaterialTheme.colorScheme.surface
+        tonalElevation = 3.dp
     ) {
         Row(
             modifier = Modifier
                 .padding(16.dp)
                 .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedTextField(
                 value = inputText,
                 onValueChange = onInputChanged,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(end = 8.dp)
                     .onPreviewKeyEvent { keyEvent ->
                         if (keyEvent.key == Key.Enter && keyEvent.type == KeyEventType.KeyDown) {
                             if (!keyEvent.isShiftPressed && inputText.isNotBlank() && !isLoading) {
                                 onSendMessage()
                                 true
-                            } else {
-                                false
-                            }
-                        } else {
-                            false
-                        }
+                            } else false
+                        } else false
                     },
                 placeholder = { Text("Введите сообщение...") },
                 enabled = !isLoading,
-                maxLines = 4
+                maxLines = 4,
+                shape = RoundedCornerShape(24.dp)
             )
 
-            Button(
-                onClick = onSendMessage,
-                enabled = inputText.isNotBlank() && !isLoading,
-                modifier = Modifier.height(56.dp)
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text("Отправить")
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.size(56.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(32.dp))
                 }
             }
         }
     }
 }
 
+/**
+ * Token Usage Statistics Card.
+ */
 @Composable
 fun TokenUsageStats(
     tokenUsage: TokenUsage,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    ElevatedCard(
         modifier = modifier,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shadowElevation = 4.dp
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
     ) {
         Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth()
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Token Usage",
+                "Token Usage",
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 16.dp)
+                fontWeight = FontWeight.Bold
             )
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    StatRow(
-                        label = "Prompt Tokens:",
-                        value = tokenUsage.promptTokens.toString()
-                    )
-                    HorizontalDivider()
-                    StatRow(
-                        label = "Completion Tokens:",
-                        value = tokenUsage.completionTokens.toString()
-                    )
-                    HorizontalDivider()
-                    StatRow(
-                        label = "Total Tokens:",
-                        value = tokenUsage.totalTokens.toString(),
-                        isTotal = true
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
+            HorizontalDivider()
+            StatRow("Prompt Tokens:", tokenUsage.promptTokens.toString())
+            StatRow("Completion Tokens:", tokenUsage.completionTokens.toString())
+            HorizontalDivider()
+            StatRow("Total Tokens:", tokenUsage.totalTokens.toString(), isTotal = true)
+            Spacer(Modifier.height(8.dp))
             Text(
-                text = "Statistics are cumulative for the current chat session and will reset when:\n• New chat is started\n• Model is changed",
+                "Cumulative for current session",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
@@ -542,6 +704,52 @@ fun TokenUsageStats(
     }
 }
 
+/**
+ * Last Response Token Usage Statistics Card.
+ */
+@Composable
+fun LastResponseTokenUsageStats(
+    lastResponseTokenUsage: TokenUsage?,
+    responseTimeMs: Long?,
+    modifier: Modifier = Modifier
+) {
+    ElevatedCard(
+        modifier = modifier,
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                "Last Response",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            HorizontalDivider()
+            if (lastResponseTokenUsage != null) {
+                StatRow("Prompt Tokens:", lastResponseTokenUsage.promptTokens.toString())
+                StatRow("Completion Tokens:", lastResponseTokenUsage.completionTokens.toString())
+                StatRow("Total Tokens:", lastResponseTokenUsage.totalTokens.toString())
+                if (responseTimeMs != null) {
+                    HorizontalDivider()
+                    StatRow("Response Time:", "${responseTimeMs}ms")
+                }
+            } else {
+                Text(
+                    "No response yet",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Statistics Row Component.
+ */
 @Composable
 fun StatRow(
     label: String,
@@ -556,104 +764,13 @@ fun StatRow(
         Text(
             text = label,
             style = if (isTotal) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface
+            fontWeight = if (isTotal) FontWeight.Bold else FontWeight.Normal
         )
         Text(
             text = value,
             style = if (isTotal) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
+            fontWeight = if (isTotal) FontWeight.Bold else FontWeight.Normal,
             color = if (isTotal) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
         )
-    }
-}
-
-@Composable
-fun LastResponseTokenUsageStats(
-    lastResponseTokenUsage: TokenUsage?,
-    responseTimeMs: Long?,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shadowElevation = 4.dp
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth()
-        ) {
-            Text(
-                text = "Last Response",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-
-            if (lastResponseTokenUsage != null) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        StatRow(
-                            label = "Prompt Tokens:",
-                            value = lastResponseTokenUsage.promptTokens.toString()
-                        )
-                        HorizontalDivider()
-                        StatRow(
-                            label = "Completion Tokens:",
-                            value = lastResponseTokenUsage.completionTokens.toString()
-                        )
-                        HorizontalDivider()
-                        StatRow(
-                            label = "Total Tokens:",
-                            value = lastResponseTokenUsage.totalTokens.toString(),
-                            isTotal = true
-                        )
-
-                        if (responseTimeMs != null) {
-                            HorizontalDivider()
-                            StatRow(
-                                label = "Response Time:",
-                                value = "${responseTimeMs}ms"
-                            )
-                        }
-                    }
-                }
-            } else {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .padding(12.dp)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "No response yet",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Token usage from the most recent AI response only.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
-        }
     }
 }
