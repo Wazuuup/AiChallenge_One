@@ -9,6 +9,7 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import ru.sber.cb.aichallenge_one.models.ChatMessage
 import ru.sber.cb.aichallenge_one.models.ChatResponse
 import ru.sber.cb.aichallenge_one.models.ModelInfo
 import ru.sber.cb.aichallenge_one.models.SendMessageRequest
@@ -66,6 +67,15 @@ class ChatApi {
         } catch (e: Exception) {
             println("Error clearing history: $e")
             throw e
+        }
+    }
+
+    suspend fun fetchHistory(provider: String): List<ChatMessage> {
+        return try {
+            client.get("$serverUrl/api/history?provider=$provider").body()
+        } catch (e: Exception) {
+            println("Error fetching history: $e")
+            emptyList()
         }
     }
 

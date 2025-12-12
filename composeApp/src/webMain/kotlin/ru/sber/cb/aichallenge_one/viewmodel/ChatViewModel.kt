@@ -51,9 +51,13 @@ class ChatViewModel : ViewModel() {
     private val _maxTokens = MutableStateFlow<Int?>(null)
     val maxTokens: StateFlow<Int?> = _maxTokens.asStateFlow()
 
+    private val _isLoadingHistory = MutableStateFlow(false)
+    val isLoadingHistory: StateFlow<Boolean> = _isLoadingHistory.asStateFlow()
+
     init {
-        // Fetch models on initialization
+        // Fetch models and history on initialization
         fetchModels()
+        loadHistory()
     }
 
     fun onInputChanged(text: String) {
@@ -80,6 +84,8 @@ class ChatViewModel : ViewModel() {
             // Set first model as default when switching to OpenRouter
             _selectedModel.value = _availableModels.value.firstOrNull()?.id
         }
+        // Load history for the new provider
+        loadHistory()
     }
 
     fun onModelChanged(modelId: String) {
@@ -114,6 +120,20 @@ class ChatViewModel : ViewModel() {
                 println("Failed to fetch models: $e")
             } finally {
                 _isLoadingModels.value = false
+            }
+        }
+    }
+
+    private fun loadHistory() {
+        _isLoadingHistory.value = true
+        viewModelScope.launch {
+            try {
+                val history = chatApi.fetchHistory(_provider.value)
+                _messages.value = history
+            } catch (e: Exception) {
+                println("Failed to load history: $e")
+            } finally {
+                _isLoadingHistory.value = false
             }
         }
     }

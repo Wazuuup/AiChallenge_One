@@ -5,6 +5,7 @@ import ru.sber.cb.aichallenge_one.client.GigaChatApiClient
 import ru.sber.cb.aichallenge_one.client.GigaChatClientAdapter
 import ru.sber.cb.aichallenge_one.client.GigaChatMessage
 import ru.sber.cb.aichallenge_one.client.OpenAIApiClient
+import ru.sber.cb.aichallenge_one.database.MessageRepository
 import ru.sber.cb.aichallenge_one.domain.AiProvider
 import ru.sber.cb.aichallenge_one.models.ChatResponse
 import ru.sber.cb.aichallenge_one.models.ResponseStatus
@@ -19,15 +20,18 @@ import ru.sber.cb.aichallenge_one.models.TokenUsage
  * - Clean separation of concerns (routing, history, summarization)
  * - Specialized handlers for provider-specific features (e.g., token tracking for OpenRouter)
  * - Easy to extend with new providers
+ * - Persistent storage for conversation history
  *
  * @param gigaChatApiClient GigaChat API client
  * @param openAIApiClient OpenRouter/OpenAI API client (optional)
  * @param summarizationService Universal summarization service
+ * @param messageRepository Repository for persistent message storage
  */
 class ChatService(
     gigaChatApiClient: GigaChatApiClient,
     openAIApiClient: OpenAIApiClient?,
-    summarizationService: SummarizationService
+    summarizationService: SummarizationService,
+    messageRepository: MessageRepository
 ) {
     private val logger = LoggerFactory.getLogger(ChatService::class.java)
 
@@ -44,11 +48,17 @@ class ChatService(
     init {
         // Initialize GigaChat handler
         val gigaChatAdapter = GigaChatClientAdapter(gigaChatApiClient)
-        gigaChatHandler = ProviderHandler(AiProvider.GIGACHAT, gigaChatAdapter, summarizationService)
+        gigaChatHandler = ProviderHandler(
+            provider = AiProvider.GIGACHAT,
+            aiClient = gigaChatAdapter,
+            summarizationService = summarizationService,
+            messageRepository = messageRepository,
+            providerName = "gigachat"
+        )
 
         // Initialize OpenRouter handler if available
         openRouterHandler = openAIApiClient?.let { client ->
-            OpenRouterProviderHandler(client, summarizationService)
+            OpenRouterProviderHandler(client, summarizationService, messageRepository)
         }
     }
 
@@ -163,14 +173,23 @@ class ChatService(
     }
 
     /**
-     * Clear all conversation histories and reset state.
+     * Clear all conversation histories and reset state from both memory and database.
      */
-    fun clearHistory() {
+    suspend fun clearHistory() {
         logger.info("Clearing all message histories")
         gigaChatHandler.clearHistory()
         openRouterHandler?.clearHistory()
         resetTokenUsage()
         currentModel = null
+    }
+
+    /**
+     * Load conversation histories from database into memory for all providers.
+     */
+    suspend fun loadAllHistory() {
+        logger.info("Loading conversation histories from database")
+        gigaChatHandler.loadHistory()
+        openRouterHandler?.loadHistory()
     }
 
     /**

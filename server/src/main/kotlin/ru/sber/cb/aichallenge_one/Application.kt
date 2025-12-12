@@ -10,12 +10,16 @@ import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.koin.core.logger.Level
+import org.koin.ktor.ext.inject
 import org.koin.ktor.plugin.Koin
+import ru.sber.cb.aichallenge_one.database.DatabaseFactory
 import ru.sber.cb.aichallenge_one.di.appModule
 import ru.sber.cb.aichallenge_one.routing.chatRouting
 import ru.sber.cb.aichallenge_one.routing.modelsRouting
+import ru.sber.cb.aichallenge_one.service.ChatService
 
 fun main() {
     embeddedServer(Netty, port = SERVER_PORT, host = "0.0.0.0", module = Application::module)
@@ -98,6 +102,25 @@ fun Application.module() {
                 openAIBaseUrl, openAIApiKey, openAIModel, openAIMaxTokens, openAITopP
             )
         )
+    }
+
+    // Initialize database
+    try {
+        DatabaseFactory.init(config)
+        log.info("Database initialized successfully")
+    } catch (e: Exception) {
+        log.error("Failed to initialize database. Continuing with in-memory storage only.", e)
+    }
+
+    // Load conversation history from database
+    val chatService by inject<ChatService>()
+    launch {
+        try {
+            chatService.loadAllHistory()
+            log.info("Conversation history loaded from database")
+        } catch (e: Exception) {
+            log.error("Failed to load conversation history from database", e)
+        }
     }
 
     install(ContentNegotiation) {

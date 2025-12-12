@@ -8,6 +8,9 @@ logback = "1.5.20"
 koin = "4.1.0"
 kotlinx-serialization = "1.8.0"
 typesafe-config = "1.4.2"
+exposed = "0.46.0"
+postgresql = "42.7.1"
+hikaricp = "5.1.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -36,6 +39,12 @@ koin-ktor = { module = "io.insert-koin:koin-ktor", version.ref = "koin" }
 koin-slf4j = { module = "io.insert-koin:koin-logger-slf4j", version.ref = "koin" }
 
 typesafe-config = { module = "com.typesafe:config", version.ref = "typesafe-config" }
+
+exposed-core = { module = "org.jetbrains.exposed:exposed-core", version.ref = "exposed" }
+exposed-dao = { module = "org.jetbrains.exposed:exposed-dao", version.ref = "exposed" }
+exposed-jdbc = { module = "org.jetbrains.exposed:exposed-jdbc", version.ref = "exposed" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikaricp" }
 
 [plugins]
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }

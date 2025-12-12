@@ -1,0 +1,40 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.idea
+.vscode
+*.iml
+*.ipr
+*.iws
+
+# Build outputs
+build
+*/build
+.gradle
+node_modules
+kotlin-js-store
+
+# Environment and secrets
+.env
+.env.local
+*.local.conf
+
+# Documentation
+*.md
+!README.md
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~

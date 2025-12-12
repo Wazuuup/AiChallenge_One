@@ -9,6 +9,7 @@ import kotlinx.serialization.json.Json
 import org.koin.dsl.module
 import ru.sber.cb.aichallenge_one.client.GigaChatApiClient
 import ru.sber.cb.aichallenge_one.client.OpenAIApiClient
+import ru.sber.cb.aichallenge_one.database.MessageRepository
 import ru.sber.cb.aichallenge_one.domain.SummarizationConfig
 import ru.sber.cb.aichallenge_one.service.ChatService
 import ru.sber.cb.aichallenge_one.service.OpenRouterModelsService
@@ -142,15 +143,19 @@ fun appModule(
         )
     }
 
+    // Message Repository - Persistent storage for conversation history
+    single { MessageRepository() }
+
     // Summarization Service - Universal, provider-agnostic
     single { SummarizationService(config = get()) }
 
-    // Chat Service - Refactored with Strategy pattern
+    // Chat Service - Refactored with Strategy pattern and persistence
     single {
         ChatService(
             gigaChatApiClient = get(),
             openAIApiClient = get(),
-            summarizationService = get()
+            summarizationService = get(),
+            messageRepository = get()
         )
     }
 }
