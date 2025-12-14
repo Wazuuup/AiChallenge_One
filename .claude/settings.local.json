@@ -18,7 +18,8 @@
       "Bash(gradlew.bat :server:build:*)",
       "Bash(cmd /c gradlew.bat :server:build --no-daemon)",
       "Bash(cmd /c \"gradlew.bat :server:build --no-daemon 2>&1\")",
-      "Bash(cmd /c:*)"
+      "Bash(cmd /c:*)",
+      "Bash(gradlew.bat:*)"
     ],
     "deny": [],
     "ask": []

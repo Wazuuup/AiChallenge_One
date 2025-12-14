@@ -45,7 +45,8 @@ fun Route.modelsRouting() {
         // Get model by ID
         get("/{id...}") {
             try {
-                if (modelsService == null) {
+                val service = modelsService
+                if (service == null) {
                     call.respond(
                         HttpStatusCode.ServiceUnavailable,
                         mapOf("error" to "Models service is not configured")
@@ -59,7 +60,7 @@ fun Route.modelsRouting() {
                     return@get
                 }
 
-                val model = modelsService.getModelById(modelId)
+                val model = service.getModelById(modelId)
                 if (model != null) {
                     call.respond(HttpStatusCode.OK, model)
                 } else {

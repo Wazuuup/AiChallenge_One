@@ -42,7 +42,7 @@ class MessageRepository {
             dbQuery {
                 ConversationMessages
                     .selectAll().where { ConversationMessages.provider eq provider }
-                    .orderBy(ConversationMessages.createdAt:  to SortOrder.ASC)
+                    .orderBy(ConversationMessages.createdAt, SortOrder.ASC)
                     .map { rowToMessage(it) }
             }
         } catch (e: Exception) {
