@@ -19,7 +19,15 @@
       "Bash(cmd /c gradlew.bat :server:build --no-daemon)",
       "Bash(cmd /c \"gradlew.bat :server:build --no-daemon 2>&1\")",
       "Bash(cmd /c:*)",
-      "Bash(gradlew.bat:*)"
+      "Bash(gradlew.bat:*)",
+      "Bash(tree:*)",
+      "WebSearch",
+      "WebFetch(domain:modelcontextprotocol.github.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(.\\gradlew.bat :mcp-server:build:*)",
+      "Bash(.gradlew.bat :mcp-server:build --no-daemon)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

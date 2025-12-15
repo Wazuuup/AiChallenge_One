@@ -32,4 +32,6 @@ dependencyResolutionManagement {
 
 include(":composeApp")
 include(":server")
+include(":mcp-server")
+include(":mcp-client")
 include(":shared")
