@@ -34,3 +34,12 @@ dependencies {
 tasks.named<JavaExec>("run") {
     standardInput = System.`in`
 }
+
+// Task to run the ExchangeRateClient
+tasks.register<JavaExec>("runExchangeRate") {
+    group = "application"
+    description = "Run the Exchange Rate Client (calls get_exchange_rate tool with USD)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("ru.sber.cb.aichallenge_one.mcp_client.ExchangeRateClientKt")
+    standardInput = System.`in`
+}

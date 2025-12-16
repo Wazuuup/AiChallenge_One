@@ -27,6 +27,11 @@ dependencies {
     implementation(libs.ktor.serializationKotlinxJson)
     implementation(libs.ktor.networkTls)
 
+    // Ktor Client (for external API calls)
+    implementation(libs.ktor.clientCore)
+    implementation(libs.ktor.clientCio)
+    implementation(libs.ktor.clientContentNegotiation)
+
     // Logging
     implementation(libs.logback)
 
