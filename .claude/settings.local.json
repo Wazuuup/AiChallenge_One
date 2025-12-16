@@ -27,7 +27,11 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(.\\gradlew.bat :mcp-server:build:*)",
       "Bash(.gradlew.bat :mcp-server:build --no-daemon)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(powershell -Command \"Remove-Item -Path ''mcp-server\\src\\main\\resources\\keystore.jks'' -Force; Remove-Item -Path ''mcp-server\\build\\resources\\main\\keystore.jks'' -Force; Write-Host ''Keystore files deleted''\")",
+      "Bash(timeout /t 10 /nobreak)",
+      "Bash(powershell:*)",
+      "WebFetch(domain:openrouter.ai)"
     ],
     "deny": [],
     "ask": []

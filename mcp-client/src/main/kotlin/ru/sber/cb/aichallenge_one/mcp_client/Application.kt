@@ -13,7 +13,8 @@ import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 
-const val MCP_SERVER_URL = "http://127.0.0.1:8082"
+const val MCP_SERVER_URL = "http://89.124.67.120:8082"
+const val MCP_SERVER_SSL_URL = "https://127.0.0.1:8443"  // Use 127.0.0.1 to match existing certificate
 
 /**
  * MCP CLI Client - connects to MCP server and retrieves list of available tools

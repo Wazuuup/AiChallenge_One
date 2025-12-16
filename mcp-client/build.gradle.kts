@@ -43,3 +43,12 @@ tasks.register<JavaExec>("runExchangeRate") {
     mainClass.set("ru.sber.cb.aichallenge_one.mcp_client.ExchangeRateClientKt")
     standardInput = System.`in`
 }
+
+// Task to run the ExchangeRateClient with SSL
+tasks.register<JavaExec>("runExchangeRateSSL") {
+    group = "application"
+    description = "Run the Exchange Rate Client with SSL (calls get_exchange_rate tool with USD over HTTPS)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("ru.sber.cb.aichallenge_one.mcp_client.ExchangeRateClientSSLKt")
+    standardInput = System.`in`
+}

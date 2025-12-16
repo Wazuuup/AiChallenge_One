@@ -18,8 +18,10 @@ import org.koin.ktor.plugin.Koin
 import ru.sber.cb.aichallenge_one.database.DatabaseFactory
 import ru.sber.cb.aichallenge_one.di.appModule
 import ru.sber.cb.aichallenge_one.routing.chatRouting
+import ru.sber.cb.aichallenge_one.routing.configureToolCallingRouting
 import ru.sber.cb.aichallenge_one.routing.modelsRouting
 import ru.sber.cb.aichallenge_one.service.ChatService
+import ru.sber.cb.aichallenge_one.service.McpClientService
 
 fun main() {
     embeddedServer(Netty, port = SERVER_PORT, host = "0.0.0.0", module = Application::module)
@@ -140,6 +142,7 @@ fun Application.module() {
         anyHost()
     }
 
+    // Configure routing
     routing {
         get("/") {
             call.respondText("GigaChat Chat Server is running")
@@ -147,5 +150,21 @@ fun Application.module() {
 
         chatRouting()
         modelsRouting()
+    }
+
+    // Configure tool calling routing
+    configureToolCallingRouting()
+
+    // Initialize MCP connection on startup (optional - can also be done via /api/tools/connect)
+    val mcpClientService by inject<McpClientService>()
+    launch {
+        try {
+            log.info("Connecting to MCP server on startup...")
+            mcpClientService.connect()
+            log.info("✓ MCP server connected successfully")
+        } catch (e: Exception) {
+            log.warn("Failed to connect to MCP server on startup: ${e.message}")
+            log.warn("You can manually connect using POST /api/tools/connect")
+        }
     }
 }

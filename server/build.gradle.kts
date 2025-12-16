@@ -35,6 +35,9 @@ dependencies {
     implementation(libs.koin.slf4j)
     implementation(libs.typesafe.config)
 
+    // MCP SDK for tool calling
+    implementation(libs.mcp.sdk)
+
     // Database
     implementation(libs.exposed.core)
     implementation(libs.exposed.dao)

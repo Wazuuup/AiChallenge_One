@@ -22,3 +22,8 @@ run-server.bat
 **/application-dev.conf
 truststore.jks
 settings.local.json
+
+# Deployment artifacts
+mcp-server-deploy.tar.gz
+*.tar.gz
+*.pid

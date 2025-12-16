@@ -11,9 +11,7 @@ import ru.sber.cb.aichallenge_one.client.GigaChatApiClient
 import ru.sber.cb.aichallenge_one.client.OpenAIApiClient
 import ru.sber.cb.aichallenge_one.database.MessageRepository
 import ru.sber.cb.aichallenge_one.domain.SummarizationConfig
-import ru.sber.cb.aichallenge_one.service.ChatService
-import ru.sber.cb.aichallenge_one.service.OpenRouterModelsService
-import ru.sber.cb.aichallenge_one.service.SummarizationService
+import ru.sber.cb.aichallenge_one.service.*
 import java.security.KeyStore
 import java.security.SecureRandom
 import javax.net.ssl.SSLContext
@@ -149,11 +147,33 @@ fun appModule(
     // Summarization Service - Universal, provider-agnostic
     single { SummarizationService(config = get()) }
 
+    // MCP Client Service - Connects to local mcp-server for tool calling
+    single {
+        McpClientService(mcpServerUrl = "http://localhost:8082")
+    }
+
+    // Tool Adapter Service - Converts MCP tools to OpenRouter format
+    single { ToolAdapterService() }
+
+    // Tool Execution Service - Handles tool calling workflow
+    single {
+        val openAIClient = getOrNull<OpenAIApiClient>()
+        if (openAIClient != null) {
+            ToolExecutionService(
+                mcpClientService = get(),
+                toolAdapterService = get(),
+                openAIApiClient = openAIClient
+            )
+        } else {
+            null
+        }
+    }
+
     // Chat Service - Refactored with Strategy pattern and persistence
     single {
         ChatService(
             gigaChatApiClient = get(),
-            openAIApiClient = get(),
+            openAIApiClient = getOrNull(),
             summarizationService = get(),
             messageRepository = get()
         )

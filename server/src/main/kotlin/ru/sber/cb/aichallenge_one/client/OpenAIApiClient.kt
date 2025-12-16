@@ -351,4 +351,88 @@ class OpenAIApiClient(
     fun convertToGigaChatMessage(message: OpenAIMessage): GigaChatMessage {
         return GigaChatMessage(role = message.role, content = message.content)
     }
+
+    /**
+     * Send a message with tool calling support to OpenRouter-compatible API
+     *
+     * @param messageHistory List of previous messages in the conversation (with tool support)
+     * @param tools List of available tools in OpenRouter format
+     * @param customSystemPrompt Custom system prompt (optional)
+     * @param temperature Temperature parameter for response randomness (0.0-2.0)
+     * @param maxTokensOverride Override the default maxTokens for this request (optional)
+     * @return OpenAIResponseWithTools containing response with possible tool calls
+     */
+    suspend fun sendMessageWithTools(
+        messageHistory: List<OpenAIMessageWithTools>,
+        tools: List<OpenRouterTool>,
+        customSystemPrompt: String = "",
+        temperature: Double = 0.7,
+        maxTokensOverride: Int? = null
+    ): OpenAIResponseWithTools {
+        try {
+            val systemPromptContent = customSystemPrompt.ifBlank {
+                "You are a helpful assistant with access to tools. Use the provided tools when necessary to help answer user questions."
+            }
+
+            val systemPrompt = OpenAIMessageWithTools(
+                role = MessageRole.SYSTEM.value,
+                content = systemPromptContent
+            )
+
+            val request = OpenAIRequestWithTools(
+                model = model,
+                messages = listOf(systemPrompt) + messageHistory,
+                temperature = temperature.coerceIn(0.0, 2.0),
+                top_p = topP,
+                max_tokens = maxTokensOverride ?: maxTokens,
+                stream = false,
+                tools = tools.ifEmpty { null },  // Only include tools if not empty
+                tool_choice = if (tools.isEmpty()) null else "auto"
+            )
+
+            logger.info("Sending message with ${tools.size} tools to OpenRouter API: model=$model")
+
+            val startTime = System.currentTimeMillis()
+
+            val response: HttpResponse = httpClient.post("$baseUrl/chat/completions") {
+                headers {
+                    append(HttpHeaders.Authorization, "Bearer $apiKey")
+                    append(HttpHeaders.ContentType, "application/json")
+                }
+                setBody(request)
+            }
+
+            val responseTimeMs = System.currentTimeMillis() - startTime
+
+            if (response.status.isSuccess()) {
+                val chatResponse: OpenAIResponseWithTools = response.body()
+
+                logger.info("Received response from OpenRouter API: ${chatResponse.choices.firstOrNull()?.finish_reason}")
+
+                // Check if response contains tool calls
+                val toolCalls = chatResponse.choices.firstOrNull()?.message?.tool_calls
+                if (!toolCalls.isNullOrEmpty()) {
+                    logger.info("Response contains ${toolCalls.size} tool call(s)")
+                    toolCalls.forEach { toolCall ->
+                        logger.debug("Tool call: ${toolCall.function.name} with args: ${toolCall.function.arguments}")
+                    }
+                }
+
+                chatResponse.usage?.let { usage ->
+                    logger.debug("Token usage - Prompt: ${usage.promptTokens}, Completion: ${usage.completionTokens}, Total: ${usage.totalTokens}")
+                }
+
+                logger.debug("Response time: ${responseTimeMs}ms")
+
+                return chatResponse
+            } else {
+                val errorBody = response.bodyAsText()
+                logger.error("OpenRouter API error: ${response.status} - $errorBody")
+                throw Exception("OpenRouter API error: ${response.status} - $errorBody")
+            }
+        } catch (e: Exception) {
+            logger.error("Error communicating with OpenRouter API", e)
+            throw e
+        }
+    }
 }
