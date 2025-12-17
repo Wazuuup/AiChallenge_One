@@ -32,7 +32,8 @@ fun Route.chatRouting() {
                     temperature = request.temperature,
                     provider = request.provider,
                     model = request.model,
-                    maxTokens = request.maxTokens
+                    maxTokens = request.maxTokens,
+                    enableTools = request.enableTools
                 )
                 call.respond(HttpStatusCode.OK, response)
             } catch (e: Exception) {

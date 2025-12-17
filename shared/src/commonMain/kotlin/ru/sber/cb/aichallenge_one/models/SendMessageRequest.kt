@@ -9,5 +9,6 @@ data class SendMessageRequest(
     val temperature: Double = 0.7,
     val provider: String = "gigachat", // "gigachat" or "openrouter"
     val model: String? = null, // Model name for OpenRouter, null for GigaChat
-    val maxTokens: Int? = null // Maximum tokens for completion, null for default
+    val maxTokens: Int? = null, // Maximum tokens for completion, null for default
+    val enableTools: Boolean = true // Enable MCP tool calling for OpenRouter (default: true)
 )

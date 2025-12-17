@@ -21,17 +21,24 @@ import ru.sber.cb.aichallenge_one.models.TokenUsage
  * - Specialized handlers for provider-specific features (e.g., token tracking for OpenRouter)
  * - Easy to extend with new providers
  * - Persistent storage for conversation history
+ * - Optional MCP tool calling support for OpenRouter
  *
  * @param gigaChatApiClient GigaChat API client
  * @param openAIApiClient OpenRouter/OpenAI API client (optional)
  * @param summarizationService Universal summarization service
  * @param messageRepository Repository for persistent message storage
+ * @param mcpClientService MCP client for tool calling (optional)
+ * @param toolAdapterService Tool format conversion service (optional)
+ * @param toolExecutionService Tool execution workflow handler (optional)
  */
 class ChatService(
     gigaChatApiClient: GigaChatApiClient,
     openAIApiClient: OpenAIApiClient?,
     summarizationService: SummarizationService,
-    messageRepository: MessageRepository
+    messageRepository: MessageRepository,
+    mcpClientService: McpClientService? = null,
+    toolAdapterService: ToolAdapterService? = null,
+    toolExecutionService: ToolExecutionService? = null
 ) {
     private val logger = LoggerFactory.getLogger(ChatService::class.java)
 
@@ -56,9 +63,17 @@ class ChatService(
             providerName = "gigachat"
         )
 
-        // Initialize OpenRouter handler if available
+        // Initialize OpenRouter handler if available with optional tool calling support
         openRouterHandler = openAIApiClient?.let { client ->
-            OpenRouterProviderHandler(client, summarizationService, messageRepository)
+            OpenRouterProviderHandler(
+                openAIApiClient = client,
+                summarizationService = summarizationService,
+                messageRepository = messageRepository,
+                maxTokens = null,
+                mcpClientService = mcpClientService,
+                toolAdapterService = toolAdapterService,
+                toolExecutionService = toolExecutionService
+            )
         }
     }
 
@@ -72,6 +87,7 @@ class ChatService(
      * @param provider Provider name ("gigachat" or "openrouter")
      * @param model Model name (OpenRouter only)
      * @param maxTokens Max response tokens (OpenRouter only)
+     * @param enableTools Enable MCP tool calling for OpenRouter (default: true)
      * @return ChatResponse with AI reply and metadata
      */
     suspend fun processUserMessage(
@@ -80,15 +96,23 @@ class ChatService(
         temperature: Double = 0.7,
         provider: String = "gigachat",
         model: String? = null,
-        maxTokens: Int? = null
+        maxTokens: Int? = null,
+        enableTools: Boolean = true
     ): ChatResponse {
         return try {
             val aiProvider = AiProvider.fromString(provider)
-            logger.info("Processing message [provider=${aiProvider.displayName}, temperature=$temperature, model=$model]")
+            logger.info("Processing message [provider=${aiProvider.displayName}, temperature=$temperature, model=$model, enableTools=$enableTools]")
 
             when (aiProvider) {
                 AiProvider.GIGACHAT -> processGigaChatMessage(userText, systemPrompt, temperature)
-                AiProvider.OPENROUTER -> processOpenRouterMessage(userText, systemPrompt, temperature, model, maxTokens)
+                AiProvider.OPENROUTER -> processOpenRouterMessage(
+                    userText,
+                    systemPrompt,
+                    temperature,
+                    model,
+                    maxTokens,
+                    enableTools
+                )
             }
         } catch (e: Exception) {
             logger.error("Error processing user message", e)
@@ -109,14 +133,15 @@ class ChatService(
     }
 
     /**
-     * Process message using OpenRouter with token tracking.
+     * Process message using OpenRouter with token tracking and optional tool calling.
      */
     private suspend fun processOpenRouterMessage(
         userText: String,
         systemPrompt: String,
         temperature: Double,
         model: String?,
-        maxTokens: Int?
+        maxTokens: Int?,
+        enableTools: Boolean
     ): ChatResponse {
         // Validate OpenRouter is configured
         if (openRouterHandler == null) {
@@ -135,8 +160,14 @@ class ChatService(
             currentModel = model
         }
 
-        // Process with metadata
-        val result = openRouterHandler.processMessageWithMetadata(userText, systemPrompt, temperature)
+        // Route to appropriate processing method based on enableTools flag
+        val result = if (enableTools) {
+            logger.info("Processing with tool calling enabled")
+            openRouterHandler.processMessageWithTools(userText, systemPrompt, temperature)
+        } else {
+            logger.info("Processing without tool calling")
+            openRouterHandler.processMessageWithMetadata(userText, systemPrompt, temperature)
+        }
 
         // Track last response tokens
         val lastResponseTokenUsage = result.usage?.let { usage ->

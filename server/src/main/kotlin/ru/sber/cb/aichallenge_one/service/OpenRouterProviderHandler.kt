@@ -1,23 +1,23 @@
 package ru.sber.cb.aichallenge_one.service
 
 import org.slf4j.LoggerFactory
-import ru.sber.cb.aichallenge_one.client.MessageRole
-import ru.sber.cb.aichallenge_one.client.OpenAIApiClient
-import ru.sber.cb.aichallenge_one.client.OpenAIMessage
-import ru.sber.cb.aichallenge_one.client.OpenAIUsage
+import ru.sber.cb.aichallenge_one.client.*
 import ru.sber.cb.aichallenge_one.database.MessageRepository
 import ru.sber.cb.aichallenge_one.domain.AiProvider
 import ru.sber.cb.aichallenge_one.domain.ConversationHistory
 
 /**
  * Specialized provider handler for OpenRouter with token tracking support.
- * Extends base functionality with OpenAI-specific features like token usage monitoring.
+ * Extends base functionality with OpenAI-specific features like token usage monitoring and tool calling.
  */
 class OpenRouterProviderHandler(
     private val openAIApiClient: OpenAIApiClient,
     private val summarizationService: SummarizationService,
     private val messageRepository: MessageRepository,
-    private val maxTokens: Int? = null
+    private val maxTokens: Int? = null,
+    private val mcpClientService: McpClientService? = null,
+    private val toolAdapterService: ToolAdapterService? = null,
+    private val toolExecutionService: ToolExecutionService? = null
 ) {
     private val logger = LoggerFactory.getLogger(OpenRouterProviderHandler::class.java)
     private val history = ConversationHistory<OpenAIMessage>()
@@ -87,7 +87,7 @@ class OpenRouterProviderHandler(
 
         try {
             // Create temporary adapter for summarization
-            val adapter = ru.sber.cb.aichallenge_one.client.OpenRouterClientAdapter(openAIApiClient, maxTokens)
+            val adapter = OpenRouterClientAdapter(openAIApiClient, maxTokens)
             val summary = summarizationService.summarize(history.toList(), adapter)
             history.clear()
             history.add(summary)
@@ -140,6 +140,99 @@ class OpenRouterProviderHandler(
     }
 
     fun getProvider(): AiProvider = AiProvider.OPENROUTER
+
+    /**
+     * Process a user message with tool calling support.
+     * Automatically fetches available tools from MCP server and handles tool execution workflow.
+     *
+     * @param userText User's message
+     * @param systemPrompt Custom system prompt
+     * @param temperature Response randomness (0.0-2.0)
+     * @return Result with response text, token usage, and response time
+     * @throws IllegalStateException if tool calling dependencies are not configured
+     */
+    suspend fun processMessageWithTools(
+        userText: String,
+        systemPrompt: String,
+        temperature: Double
+    ): OpenRouterMessageResult {
+        // Validate tool calling dependencies
+        if (mcpClientService == null || toolAdapterService == null || toolExecutionService == null) {
+            logger.warn("Tool calling requested but dependencies not configured, falling back to regular processing")
+            return processMessageWithMetadata(userText, systemPrompt, temperature)
+        }
+
+        logger.info("Processing OpenRouter message with tools: $userText")
+
+        try {
+            // Fetch available tools from MCP server
+            val mcpTools = mcpClientService.listTools()
+            val openRouterTools = toolAdapterService.convertMcpToolsToOpenRouter(mcpTools)
+
+            logger.info("Found ${openRouterTools.size} available tools from MCP server")
+
+            // Convert current history to OpenAIMessageWithTools format
+            val messageHistoryWithTools = history.toList().map { message ->
+                OpenAIMessageWithTools(
+                    role = message.role,
+                    content = message.content
+                )
+            }.toMutableList()
+
+            // Track start time for response time measurement
+            val startTime = System.currentTimeMillis()
+
+            // Execute tool calling workflow
+            val responseText = toolExecutionService.handleToolCallingWorkflow(
+                messageHistory = messageHistoryWithTools,
+                tools = openRouterTools,
+                userMessage = userText,
+                systemPrompt = systemPrompt,
+                temperature = temperature
+            )
+
+            val responseTimeMs = System.currentTimeMillis() - startTime
+
+            // Extract token usage from the last response in the workflow
+            // Note: We get usage from openAIApiClient's response history
+            val lastResponse = openAIApiClient.getLatestResponse()
+            val usage = lastResponse?.response?.usage
+
+            // Add user message to history
+            val userMessage = OpenAIMessage(role = MessageRole.USER.value, content = userText)
+            history.add(userMessage)
+
+            // Add assistant response to history
+            val assistantMessage = OpenAIMessage(role = MessageRole.ASSISTANT.value, content = responseText)
+            history.add(assistantMessage)
+
+            // Save messages to database
+            try {
+                messageRepository.saveMessage(providerName, MessageRole.USER.value, userText)
+                messageRepository.saveMessage(providerName, MessageRole.ASSISTANT.value, responseText)
+            } catch (e: Exception) {
+                logger.error("Failed to save messages to database", e)
+            }
+
+            // Check if summarization is needed
+            if (summarizationService.shouldSummarize(history.messageCount)) {
+                performSummarization()
+            }
+
+            logger.info("Tool calling workflow completed successfully")
+
+            return OpenRouterMessageResult(
+                text = responseText,
+                usage = usage,
+                responseTimeMs = responseTimeMs
+            )
+
+        } catch (e: Exception) {
+            logger.error("Error in tool calling workflow, falling back to regular processing", e)
+            // Fallback to regular processing if tool calling fails
+            return processMessageWithMetadata(userText, systemPrompt, temperature)
+        }
+    }
 }
 
 /**

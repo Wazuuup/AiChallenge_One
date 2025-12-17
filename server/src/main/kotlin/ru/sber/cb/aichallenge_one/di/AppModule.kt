@@ -169,13 +169,16 @@ fun appModule(
         }
     }
 
-    // Chat Service - Refactored with Strategy pattern and persistence
+    // Chat Service - Refactored with Strategy pattern, persistence, and tool calling support
     single {
         ChatService(
             gigaChatApiClient = get(),
             openAIApiClient = getOrNull(),
             summarizationService = get(),
-            messageRepository = get()
+            messageRepository = get(),
+            mcpClientService = getOrNull(),
+            toolAdapterService = getOrNull(),
+            toolExecutionService = getOrNull()
         )
     }
 }
