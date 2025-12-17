@@ -77,11 +77,12 @@ fun appModule(
                     ignoreUnknownKeys = true
                     prettyPrint = true
                     isLenient = true
+                    encodeDefaults = true  // Required for OpenRouter tool calling - includes fields with default values
                 })
             }
             install(Logging) {
                 logger = Logger.DEFAULT
-                level = LogLevel.INFO
+                level = LogLevel.BODY
             }
             engine {
                 endpoint {
@@ -176,8 +177,8 @@ fun appModule(
             openAIApiClient = getOrNull(),
             summarizationService = get(),
             messageRepository = get(),
-            mcpClientService = getOrNull(),
-            toolAdapterService = getOrNull(),
+            mcpClientService = get(),
+            toolAdapterService = get(),
             toolExecutionService = getOrNull()
         )
     }

@@ -1,6 +1,7 @@
 package ru.sber.cb.aichallenge_one.service
 
 import io.modelcontextprotocol.kotlin.sdk.types.Tool
+import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
 import ru.sber.cb.aichallenge_one.client.OpenRouterFunction
@@ -11,7 +12,11 @@ import ru.sber.cb.aichallenge_one.client.OpenRouterTool
  */
 class ToolAdapterService {
     private val logger = LoggerFactory.getLogger(ToolAdapterService::class.java)
-    private val json = Json { prettyPrint = false }
+    private val json = Json {
+        prettyPrint = false
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
 
     /**
      * Convert MCP Tool to OpenRouter Tool format
@@ -43,13 +48,81 @@ class ToolAdapterService {
      */
     private fun convertMcpSchemaToJsonElement(schema: Any?): JsonElement {
         return when (schema) {
-            is JsonElement -> schema
-            else -> {
-                // If schema is already a Map or other structure, convert it to JSON
+            is JsonElement -> {
+                logger.debug("Schema is already JsonElement")
+                schema
+            }
+
+            null -> {
+                logger.debug("Schema is null, using default empty object schema")
+                buildJsonObject {
+                    put("type", "object")
+                    put("properties", buildJsonObject {})
+                }
+            }
+
+            is String -> {
+                logger.debug("Schema is a String, parsing as JSON")
                 try {
-                    json.parseToJsonElement(Json.encodeToString(JsonElement.serializer(), schema as JsonElement))
+                    json.parseToJsonElement(schema)
                 } catch (e: Exception) {
-                    logger.warn("Failed to convert schema, using default: ${e.message}")
+                    logger.warn("Failed to parse schema string as JSON: ${e.message}")
+                    buildJsonObject {
+                        put("type", "object")
+                        put("properties", buildJsonObject {})
+                    }
+                }
+            }
+
+            is ToolSchema -> {
+                logger.debug("Schema is ToolSchema, converting to JsonElement")
+                try {
+                    Json.parseToJsonElement(Json.encodeToString(schema.properties))
+                } catch (e: Exception) {
+                    logger.error("Failed to convert ToolSchema: ${e.message}", e)
+                    buildJsonObject {
+                        put("type", "object")
+                        put("properties", buildJsonObject {})
+                    }
+                }
+            }
+            else -> {
+                // Convert schema object to JsonElement
+                // ToolSchema from MCP SDK is a Map-like structure
+                try {
+                    logger.debug("Converting schema of type ${schema::class.qualifiedName} to JsonElement")
+
+                    // Try multiple approaches to convert to JsonElement
+
+                    // Approach 1: Try to use Json.encodeToJsonElement if schema is serializable
+                    try {
+                        // MCP SDK types are typically Map<String, Any?> under the hood
+                        @Suppress("UNCHECKED_CAST")
+                        val schemaMap = schema as? Map<String, Any?>
+                        if (schemaMap != null) {
+                            return convertMapToJsonElement(schemaMap)
+                        }
+                    } catch (e: ClassCastException) {
+                        logger.debug("Schema is not a Map, trying JSON string conversion")
+                    }
+
+                    // Approach 2: Try toString() and parse as JSON
+                    val jsonString = schema.toString()
+                    try {
+                        json.parseToJsonElement(jsonString)
+                    } catch (parseError: Exception) {
+                        logger.warn("ToolSchema.toString() produced invalid JSON: $jsonString")
+
+                        // Approach 3: Fallback to default empty schema
+                        buildJsonObject {
+                            put("type", "object")
+                            put("properties", buildJsonObject {})
+                            put("additionalProperties", JsonPrimitive(true))
+                        }
+                    }
+
+                } catch (e: Exception) {
+                    logger.error("Failed to convert schema to JsonElement: ${e.message}", e)
                     // Default empty object schema
                     buildJsonObject {
                         put("type", "object")
@@ -57,6 +130,40 @@ class ToolAdapterService {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Convert a Map to JsonElement recursively
+     */
+    private fun convertMapToJsonElement(map: Map<String, Any?>): JsonElement {
+        return buildJsonObject {
+            map.forEach { (key, value) ->
+                put(key, convertValueToJsonElement(value))
+            }
+        }
+    }
+
+    /**
+     * Convert any value to JsonElement
+     */
+    private fun convertValueToJsonElement(value: Any?): JsonElement {
+        return when (value) {
+            null -> JsonNull
+            is JsonElement -> value
+            is String -> JsonPrimitive(value)
+            is Number -> JsonPrimitive(value)
+            is Boolean -> JsonPrimitive(value)
+            is Map<*, *> -> {
+                @Suppress("UNCHECKED_CAST")
+                convertMapToJsonElement(value as Map<String, Any?>)
+            }
+
+            is List<*> -> buildJsonArray {
+                value.forEach { add(convertValueToJsonElement(it)) }
+            }
+
+            else -> JsonPrimitive(value.toString())
         }
     }
 

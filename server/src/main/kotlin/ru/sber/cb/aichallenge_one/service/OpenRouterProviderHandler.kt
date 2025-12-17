@@ -9,14 +9,22 @@ import ru.sber.cb.aichallenge_one.domain.ConversationHistory
 /**
  * Specialized provider handler for OpenRouter with token tracking support.
  * Extends base functionality with OpenAI-specific features like token usage monitoring and tool calling.
+ *
+ * @param openAIApiClient OpenRouter/OpenAI API client
+ * @param summarizationService Service for conversation summarization
+ * @param messageRepository Repository for persistent message storage
+ * @param maxTokens Maximum tokens for responses (optional)
+ * @param mcpClientService MCP client for tool calling
+ * @param toolAdapterService Service for converting MCP tools to OpenRouter format
+ * @param toolExecutionService Service for executing tool calling workflow (optional, requires OpenRouter)
  */
 class OpenRouterProviderHandler(
     private val openAIApiClient: OpenAIApiClient,
     private val summarizationService: SummarizationService,
     private val messageRepository: MessageRepository,
     private val maxTokens: Int? = null,
-    private val mcpClientService: McpClientService? = null,
-    private val toolAdapterService: ToolAdapterService? = null,
+    private val mcpClientService: McpClientService,
+    private val toolAdapterService: ToolAdapterService,
     private val toolExecutionService: ToolExecutionService? = null
 ) {
     private val logger = LoggerFactory.getLogger(OpenRouterProviderHandler::class.java)
@@ -149,16 +157,15 @@ class OpenRouterProviderHandler(
      * @param systemPrompt Custom system prompt
      * @param temperature Response randomness (0.0-2.0)
      * @return Result with response text, token usage, and response time
-     * @throws IllegalStateException if tool calling dependencies are not configured
      */
     suspend fun processMessageWithTools(
         userText: String,
         systemPrompt: String,
         temperature: Double
     ): OpenRouterMessageResult {
-        // Validate tool calling dependencies
-        if (mcpClientService == null || toolAdapterService == null || toolExecutionService == null) {
-            logger.warn("Tool calling requested but dependencies not configured, falling back to regular processing")
+        // Validate tool execution service is available (requires OpenRouter configuration)
+        if (toolExecutionService == null) {
+            logger.warn("Tool execution service not available (OpenRouter not configured), falling back to regular processing")
             return processMessageWithMetadata(userText, systemPrompt, temperature)
         }
 

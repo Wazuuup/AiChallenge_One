@@ -27,7 +27,7 @@ fun Application.configureMcpServer() {
         mcp {
             Server(
                 serverInfo = Implementation(
-                    name = "reverse-string-mcp-server",
+                    name = "test-mcp-server",
                     version = "1.0.0"
                 ),
                 options = ServerOptions(
@@ -36,34 +36,6 @@ fun Application.configureMcpServer() {
                     )
                 )
             ).apply {
-                addTool(
-                    name = "reverse",
-                    description = "Reverses the input string",
-                    inputSchema = ToolSchema(
-                        buildJsonObject {
-                            put("type", "object")
-                            putJsonObject("properties") {
-                                putJsonObject("text") {
-                                    put("type", "string")
-                                }
-                            }
-                            putJsonArray("required") {
-                                add(JsonPrimitive("text"))
-                            }
-                        }
-                    )
-                ) { arguments: CallToolRequest ->
-                    val text = arguments.arguments
-                        ?.get("text")
-                        ?.jsonPrimitive
-                        ?.content
-                        ?: ""
-
-                    CallToolResult(
-                        content = listOf(TextContent(text.reversed()))
-                    )
-                }
-
                 addTool(
                     name = "get_exchange_rate",
                     description = "Gets current exchange rate for a foreign currency to Russian Ruble from CBR (Central Bank of Russia)",
@@ -77,8 +49,9 @@ fun Application.configureMcpServer() {
                                 }
                             }
                             putJsonArray("required") {
-                                add(JsonPrimitive("currency_code"))
+                                add("currency_code")
                             }
+                            put("additionalProperties", false)
                         }
                     )
                 ) { arguments: CallToolRequest ->

@@ -21,23 +21,23 @@ import ru.sber.cb.aichallenge_one.models.TokenUsage
  * - Specialized handlers for provider-specific features (e.g., token tracking for OpenRouter)
  * - Easy to extend with new providers
  * - Persistent storage for conversation history
- * - Optional MCP tool calling support for OpenRouter
+ * - MCP tool calling support for OpenRouter (when configured)
  *
  * @param gigaChatApiClient GigaChat API client
  * @param openAIApiClient OpenRouter/OpenAI API client (optional)
  * @param summarizationService Universal summarization service
  * @param messageRepository Repository for persistent message storage
- * @param mcpClientService MCP client for tool calling (optional)
- * @param toolAdapterService Tool format conversion service (optional)
- * @param toolExecutionService Tool execution workflow handler (optional)
+ * @param mcpClientService MCP client for tool calling
+ * @param toolAdapterService Tool format conversion service
+ * @param toolExecutionService Tool execution workflow handler (optional, requires OpenRouter)
  */
 class ChatService(
     gigaChatApiClient: GigaChatApiClient,
     openAIApiClient: OpenAIApiClient?,
     summarizationService: SummarizationService,
     messageRepository: MessageRepository,
-    mcpClientService: McpClientService? = null,
-    toolAdapterService: ToolAdapterService? = null,
+    mcpClientService: McpClientService,
+    toolAdapterService: ToolAdapterService,
     toolExecutionService: ToolExecutionService? = null
 ) {
     private val logger = LoggerFactory.getLogger(ChatService::class.java)
