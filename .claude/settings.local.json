@@ -31,7 +31,8 @@
       "Bash(powershell -Command \"Remove-Item -Path ''mcp-server\\src\\main\\resources\\keystore.jks'' -Force; Remove-Item -Path ''mcp-server\\build\\resources\\main\\keystore.jks'' -Force; Write-Host ''Keystore files deleted''\")",
       "Bash(timeout /t 10 /nobreak)",
       "Bash(powershell:*)",
-      "WebFetch(domain:openrouter.ai)"
+      "WebFetch(domain:openrouter.ai)",
+      "Bash(.\\gradlew.bat :notes:build:*)"
     ],
     "deny": [],
     "ask": []

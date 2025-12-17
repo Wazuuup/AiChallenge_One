@@ -16,6 +16,9 @@ application {
 }
 
 dependencies {
+    // Shared models
+    implementation(project(":shared"))
+
     // MCP SDK
     implementation(libs.mcp.sdk)
 
