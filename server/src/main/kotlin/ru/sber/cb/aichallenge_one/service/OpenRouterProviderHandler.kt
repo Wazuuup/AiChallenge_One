@@ -5,6 +5,7 @@ import ru.sber.cb.aichallenge_one.client.*
 import ru.sber.cb.aichallenge_one.database.MessageRepository
 import ru.sber.cb.aichallenge_one.domain.AiProvider
 import ru.sber.cb.aichallenge_one.domain.ConversationHistory
+import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
 
 /**
  * Specialized provider handler for OpenRouter with token tracking support.
@@ -14,7 +15,7 @@ import ru.sber.cb.aichallenge_one.domain.ConversationHistory
  * @param summarizationService Service for conversation summarization
  * @param messageRepository Repository for persistent message storage
  * @param maxTokens Maximum tokens for responses (optional)
- * @param mcpClientService MCP client for tool calling
+ * @param mcpClientServiceList MCP client for tool calling
  * @param toolAdapterService Service for converting MCP tools to OpenRouter format
  * @param toolExecutionService Service for executing tool calling workflow (optional, requires OpenRouter)
  */
@@ -23,7 +24,7 @@ class OpenRouterProviderHandler(
     private val summarizationService: SummarizationService,
     private val messageRepository: MessageRepository,
     private val maxTokens: Int? = null,
-    private val mcpClientService: McpClientService,
+    private val mcpClientServiceList: List<IMcpClientService>,
     private val toolAdapterService: ToolAdapterService,
     private val toolExecutionService: ToolExecutionService? = null
 ) {
@@ -173,7 +174,7 @@ class OpenRouterProviderHandler(
 
         try {
             // Fetch available tools from MCP server
-            val mcpTools = mcpClientService.listTools()
+            val mcpTools = mcpClientServiceList.map { it.listTools() }.flatten()
             val openRouterTools = toolAdapterService.convertMcpToolsToOpenRouter(mcpTools)
 
             logger.info("Found ${openRouterTools.size} available tools from MCP server")

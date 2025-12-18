@@ -34,7 +34,8 @@
       "WebFetch(domain:openrouter.ai)",
       "Bash(.\\gradlew.bat :notes:build:*)",
       "Bash(cat:*)",
-      "Bash(del \"C:\\Users\\singe\\IdeaProjects\\AiChallenge_One\\composeApp\\src\\webMain\\kotlin\\ru\\sber\\cb\\aichallenge_one\\main.kt\")"
+      "Bash(del \"C:\\Users\\singe\\IdeaProjects\\AiChallenge_One\\composeApp\\src\\webMain\\kotlin\\ru\\sber\\cb\\aichallenge_one\\main.kt\")",
+      "Bash(.\\\\gradlew.bat :mcp-newsapi:build:*)"
     ],
     "deny": [],
     "ask": []

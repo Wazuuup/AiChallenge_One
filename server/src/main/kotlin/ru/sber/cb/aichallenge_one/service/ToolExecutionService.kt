@@ -5,12 +5,13 @@ import ru.sber.cb.aichallenge_one.client.OpenAIApiClient
 import ru.sber.cb.aichallenge_one.client.OpenAIMessageWithTools
 import ru.sber.cb.aichallenge_one.client.OpenAIResponseWithTools
 import ru.sber.cb.aichallenge_one.client.OpenRouterTool
+import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
 
 /**
  * Service for executing tool calls and managing the tool calling workflow
  */
 class ToolExecutionService(
-    private val mcpClientService: McpClientService,
+    private val mcpClientServiceList: List<IMcpClientService>,
     private val toolAdapterService: ToolAdapterService,
     private val openAIApiClient: OpenAIApiClient
 ) {
@@ -52,7 +53,9 @@ class ToolExecutionService(
                 val arguments = toolAdapterService.parseToolArguments(argumentsJson)
 
                 // Call the tool via MCP
-                val result = mcpClientService.callTool(toolName, arguments)
+                val result = mcpClientServiceList
+                    .first { it.listTools().map { tl -> tl.name }.contains(toolName) }
+                    .callTool(toolName, arguments)
 
                 logger.info("Tool '$toolName' executed successfully")
                 logger.debug("Tool result: $result")
@@ -146,7 +149,7 @@ class ToolExecutionService(
             }
 
             // Execute tool calls and add messages to history
-            val toolMessages = executeToolCalls(response)
+            val toolMessages: List<OpenAIMessageWithTools> = executeToolCalls(response)
             messageHistory.addAll(toolMessages)
 
             logger.debug("Added ${toolMessages.size} messages to history after tool execution")

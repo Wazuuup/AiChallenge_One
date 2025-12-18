@@ -1,0 +1,181 @@
+openapi: 3.0.3
+info:
+  title: NewsAPI
+  description: NewsAPI.org
+  version: 1.0.0
+servers:
+  - url: https://newsapi.org/v2
+tags:
+  - name: articles
+    description: News articles
+paths:
+  /everything/:
+    get:
+      tags:
+        - articles
+      summary: News List
+      operationId: everythingGet
+      security:
+        - ApiKeyAuth: [ ]
+      parameters:
+        - name: q
+          in: query
+          description: Theme of news
+          required: true
+          schema:
+            type: string
+        - name: from
+          in: query
+          description: date
+          required: true
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          description: Sort
+          required: true
+          schema:
+            type: string
+        - name: language
+          in: query
+          description: Language in two letters
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: number of page
+          schema:
+            type: integer
+      responses:
+        200:
+          description: success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleList'
+        default:
+          description: enexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+  /top-headlines/:
+    get:
+      tags:
+        - top-headlines
+      summary: Top headlines List
+      operationId: topHeadlinesGet
+      security:
+        - ApiKeyAuth: [ ]
+      parameters:
+        - name: country
+          in: query
+          description: The 2-letter ISO 3166-1 code of the country you want to get headlines for
+          required: true
+          example: us, ru
+          schema:
+            type: string
+        - name: category
+          in: query
+          description: he category you want to get headlines for
+          required: false
+          schema:
+            type: string
+            enum:
+              - business
+              - entertainment
+              - general
+              - health
+              - science
+              - sports
+              - technology
+        - name: q
+          in: query
+          description: Keywords or a phrase to search for.
+          required: false
+          schema:
+            type: string
+        - name: pageSize
+          in: query
+          description: The number of results to return per page (request)
+          schema:
+            type: integer
+            maximum: 100
+        - name: page
+          in: query
+          description: Use this to page through the results if the total results found is greater than the page size.
+          schema:
+            type: integer
+      responses:
+        200:
+          description: success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleList'
+        default:
+          description: enexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      description: API key for NewsAPI.org authentication
+  schemas:
+    ErrorModel:
+      type: object
+      required:
+        - message
+        - code
+      properties:
+        message:
+          type: string
+        code:
+          type: integer
+          minimum: 100
+          maximum: 600
+    ArticleList:
+      type: object
+      properties:
+        status:
+          type: string
+        totalResults:
+          type: integer
+        articles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Article'
+    Article:
+      type: object
+      properties:
+        source:
+          $ref: '#/components/schemas/Source'
+        author:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        url:
+          type: string
+        urlToImage:
+          type: string
+        publishedAt:
+          type: string
+        content:
+          type: string
+      required:
+        - title
+    Source:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string

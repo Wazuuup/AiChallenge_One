@@ -6,12 +6,16 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
+import org.koin.dsl.bind
 import org.koin.dsl.module
 import ru.sber.cb.aichallenge_one.client.GigaChatApiClient
 import ru.sber.cb.aichallenge_one.client.OpenAIApiClient
 import ru.sber.cb.aichallenge_one.database.MessageRepository
 import ru.sber.cb.aichallenge_one.domain.SummarizationConfig
 import ru.sber.cb.aichallenge_one.service.*
+import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
+import ru.sber.cb.aichallenge_one.service.mcp.NewsApiMcpClientService
+import ru.sber.cb.aichallenge_one.service.mcp.NotesMcpClientService
 import java.security.KeyStore
 import java.security.SecureRandom
 import javax.net.ssl.SSLContext
@@ -153,8 +157,12 @@ fun appModule(
 
     // MCP Client Service - Connects to local mcp-server for tool calling
     single {
-        McpClientService(mcpServerUrl = "http://localhost:8082")
-    }
+        NotesMcpClientService()
+    } bind IMcpClientService::class
+
+    single {
+        NewsApiMcpClientService()
+    } bind IMcpClientService::class
 
     // Tool Adapter Service - Converts MCP tools to OpenRouter format
     single { ToolAdapterService() }
@@ -164,7 +172,7 @@ fun appModule(
         val openAIClient = getOrNull<OpenAIApiClient>()
         if (openAIClient != null) {
             ToolExecutionService(
-                mcpClientService = get(),
+                mcpClientServiceList = getAll(),
                 toolAdapterService = get(),
                 openAIApiClient = openAIClient
             )
@@ -193,7 +201,7 @@ fun appModule(
             openAIApiClient = getOrNull(),
             summarizationService = get(),
             messageRepository = get(),
-            mcpClientService = get(),
+            mcpClientServiceList = getAll(),
             toolAdapterService = get(),
             toolExecutionService = getOrNull()
         )

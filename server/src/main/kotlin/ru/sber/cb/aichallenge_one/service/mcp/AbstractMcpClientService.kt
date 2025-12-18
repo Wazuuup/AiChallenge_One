@@ -1,4 +1,4 @@
-package ru.sber.cb.aichallenge_one.service
+package ru.sber.cb.aichallenge_one.service.mcp
 
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
@@ -18,10 +18,12 @@ import org.slf4j.LoggerFactory
 /**
  * Service for connecting to local MCP server and managing tool operations
  */
-class McpClientService(
-    private val mcpServerUrl: String = "http://localhost:8082"
-) {
-    private val logger = LoggerFactory.getLogger(McpClientService::class.java)
+abstract class AbstractMcpClientService(
+    private val mcpServerUrl: String,
+    private val mcpClientName: String,
+    private val mcpClientVersion: String
+) : IMcpClientService {
+    private val logger = LoggerFactory.getLogger(AbstractMcpClientService::class.java)
     private val mutex = Mutex()
 
     private var httpClient: HttpClient? = null
@@ -31,7 +33,7 @@ class McpClientService(
     /**
      * Connect to MCP server
      */
-    suspend fun connect() = mutex.withLock {
+    override suspend fun connect() = mutex.withLock {
         if (isConnected) {
             logger.debug("Already connected to MCP server")
             return
@@ -55,8 +57,8 @@ class McpClientService(
             // Create MCP client
             mcpClient = Client(
                 clientInfo = Implementation(
-                    name = "server-mcp-client",
-                    version = "1.0.0"
+                    name = mcpClientName,
+                    version = mcpClientVersion
                 ),
                 options = ClientOptions()
             )
@@ -81,7 +83,7 @@ class McpClientService(
     /**
      * Get list of available tools from MCP server
      */
-    suspend fun listTools(): List<Tool> = mutex.withLock {
+    override suspend fun listTools(): List<Tool> = mutex.withLock {
         ensureConnected()
 
         try {
@@ -98,7 +100,7 @@ class McpClientService(
     /**
      * Call a tool on the MCP server
      */
-    suspend fun callTool(name: String, arguments: Map<String, Any?>): String {
+    override suspend fun callTool(name: String, arguments: Map<String, Any?>): String {
         ensureConnected()
 
         try {
@@ -123,7 +125,7 @@ class McpClientService(
     /**
      * Disconnect from MCP server
      */
-    suspend fun disconnect() = mutex.withLock {
+    override suspend fun disconnect() = mutex.withLock {
         if (!isConnected) {
             return
         }

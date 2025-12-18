@@ -10,6 +10,7 @@ import ru.sber.cb.aichallenge_one.domain.AiProvider
 import ru.sber.cb.aichallenge_one.models.ChatResponse
 import ru.sber.cb.aichallenge_one.models.ResponseStatus
 import ru.sber.cb.aichallenge_one.models.TokenUsage
+import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
 
 /**
  * Refactored ChatService using Strategy pattern with ProviderHandlers.
@@ -27,7 +28,7 @@ import ru.sber.cb.aichallenge_one.models.TokenUsage
  * @param openAIApiClient OpenRouter/OpenAI API client (optional)
  * @param summarizationService Universal summarization service
  * @param messageRepository Repository for persistent message storage
- * @param mcpClientService MCP client for tool calling
+ * @param mcpClientServiceList MCP client for tool calling
  * @param toolAdapterService Tool format conversion service
  * @param toolExecutionService Tool execution workflow handler (optional, requires OpenRouter)
  */
@@ -36,7 +37,7 @@ class ChatService(
     openAIApiClient: OpenAIApiClient?,
     summarizationService: SummarizationService,
     messageRepository: MessageRepository,
-    mcpClientService: McpClientService,
+    mcpClientServiceList: List<IMcpClientService>,
     toolAdapterService: ToolAdapterService,
     toolExecutionService: ToolExecutionService? = null
 ) {
@@ -70,7 +71,7 @@ class ChatService(
                 summarizationService = summarizationService,
                 messageRepository = messageRepository,
                 maxTokens = null,
-                mcpClientService = mcpClientService,
+                mcpClientServiceList = mcpClientServiceList,
                 toolAdapterService = toolAdapterService,
                 toolExecutionService = toolExecutionService
             )

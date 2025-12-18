@@ -6,8 +6,8 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.koin.ktor.ext.inject
 import org.slf4j.LoggerFactory
-import ru.sber.cb.aichallenge_one.service.McpClientService
 import ru.sber.cb.aichallenge_one.service.ToolAdapterService
+import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
 
 /**
  * Routing for MCP tool management endpoints.
@@ -18,7 +18,7 @@ import ru.sber.cb.aichallenge_one.service.ToolAdapterService
  */
 fun Application.configureToolCallingRouting() {
     val logger = LoggerFactory.getLogger("ToolCallingRouting")
-    val mcpClientService by inject<McpClientService>()
+    val mcpClientServiceList by inject<List<IMcpClientService>>()
     val toolAdapterService by inject<ToolAdapterService>()
 
     routing {
@@ -27,9 +27,9 @@ fun Application.configureToolCallingRouting() {
             // Initialize MCP connection
             post("/connect") {
                 try {
-                    logger.info("Connecting to MCP server...")
-                    mcpClientService.connect()
-                    call.respond(HttpStatusCode.OK, mapOf("message" to "Connected to MCP server"))
+                    logger.info("Connecting to MCP servers...")
+                    mcpClientServiceList.forEach { it.connect() }
+                    call.respond(HttpStatusCode.OK, mapOf("message" to "Connected to MCP servers"))
                 } catch (e: Exception) {
                     logger.error("Failed to connect to MCP server", e)
                     call.respond(
@@ -43,7 +43,7 @@ fun Application.configureToolCallingRouting() {
             get("/list") {
                 try {
                     logger.info("Fetching tools list...")
-                    val mcpTools = mcpClientService.listTools()
+                    val mcpTools = mcpClientServiceList.map { it.listTools() }.flatten()
                     val openRouterTools = toolAdapterService.convertMcpToolsToOpenRouter(mcpTools)
 
                     call.respond(
@@ -64,9 +64,9 @@ fun Application.configureToolCallingRouting() {
             // Disconnect from MCP
             post("/disconnect") {
                 try {
-                    logger.info("Disconnecting from MCP server...")
-                    mcpClientService.disconnect()
-                    call.respond(HttpStatusCode.OK, mapOf("message" to "Disconnected from MCP server"))
+                    logger.info("Disconnecting from MCP servers...")
+                    mcpClientServiceList.forEach { it.disconnect() }
+                    call.respond(HttpStatusCode.OK, mapOf("message" to "Disconnected from MCP servers"))
                 } catch (e: Exception) {
                     logger.error("Failed to disconnect from MCP server", e)
                     call.respond(

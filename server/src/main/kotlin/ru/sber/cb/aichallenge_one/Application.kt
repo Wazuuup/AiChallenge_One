@@ -23,8 +23,8 @@ import ru.sber.cb.aichallenge_one.routing.configureToolCallingRouting
 import ru.sber.cb.aichallenge_one.routing.modelsRouting
 import ru.sber.cb.aichallenge_one.routing.notificationRouting
 import ru.sber.cb.aichallenge_one.service.ChatService
-import ru.sber.cb.aichallenge_one.service.McpClientService
 import ru.sber.cb.aichallenge_one.service.NotificationSchedulerService
+import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
 
 fun main() {
     embeddedServer(Netty, port = SERVER_PORT, host = "0.0.0.0", module = Application::module)
@@ -160,15 +160,20 @@ fun Application.module() {
     configureToolCallingRouting()
 
     // Initialize MCP connection on startup (optional - can also be done via /api/tools/connect)
-    val mcpClientService by inject<McpClientService>()
+    val mcpClientService: List<IMcpClientService> = getKoin().getAll<IMcpClientService>()
     launch {
+        mcpClientService.forEach { mcpClientService ->
         try {
-            log.info("Connecting to MCP server on startup...")
+            log.info("Connecting to MCP server {} on startup...", mcpClientService.javaClass.simpleName)
             mcpClientService.connect()
-            log.info("✓ MCP server connected successfully")
+            log.info("✓ MCP server {} connected successfully", mcpClientService.javaClass.simpleName)
         } catch (e: Exception) {
-            log.warn("Failed to connect to MCP server on startup: ${e.message}")
+            log.warn(
+                "Failed to connect to MCP server {} on startup: ${e.message}",
+                mcpClientService.javaClass.simpleName
+            )
             log.warn("You can manually connect using POST /api/tools/connect")
+        }
         }
     }
 
