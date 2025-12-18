@@ -18,7 +18,7 @@ import ru.sber.cb.aichallenge_one.news.di.newsAppModule
 import ru.sber.cb.aichallenge_one.news.routing.configureNewsRouting
 
 fun main() {
-    embeddedServer(Netty, port = 8081, host = "0.0.0.0", module = Application::module)
+    embeddedServer(Netty, port = 8087, host = "0.0.0.0", module = Application::module)
         .start(wait = true)
 }
 

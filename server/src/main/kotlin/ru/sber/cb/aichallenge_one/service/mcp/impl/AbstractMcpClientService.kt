@@ -1,4 +1,4 @@
-package ru.sber.cb.aichallenge_one.service.mcp
+package ru.sber.cb.aichallenge_one.service.mcp.impl
 
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
@@ -14,6 +14,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
+import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
 
 /**
  * Service for connecting to local MCP server and managing tool operations

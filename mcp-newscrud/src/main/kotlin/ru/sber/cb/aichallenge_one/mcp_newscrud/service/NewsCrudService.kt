@@ -13,7 +13,7 @@ import ru.sber.cb.aichallenge_one.models.news.CreateArticleRequest
 import ru.sber.cb.aichallenge_one.models.news.UpdateArticleRequest
 
 class NewsCrudService(
-    private val baseUrl: String = "http://localhost:8081"
+    private val baseUrl: String = "http://localhost:8087"
 ) {
     private val client = HttpClient(CIO) {
         install(ContentNegotiation) {

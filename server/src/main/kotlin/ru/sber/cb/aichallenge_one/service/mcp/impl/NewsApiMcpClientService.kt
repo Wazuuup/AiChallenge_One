@@ -1,4 +1,6 @@
-package ru.sber.cb.aichallenge_one.service.mcp
+package ru.sber.cb.aichallenge_one.service.mcp.impl
+
+import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
 
 class NewsApiMcpClientService(
     private val notesMcpServerUrl: String = "http://localhost:8085",

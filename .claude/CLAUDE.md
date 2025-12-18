@@ -16,12 +16,18 @@ Kotlin Multiplatform веб-приложение для взаимодейств
 ```
 composeApp (JS/WasmJS) → shared (commonMain)
 server (JVM) → shared (commonMain)
+news-crud (JVM) → shared (commonMain)
+mcp-newscrud (JVM) → shared (commonMain)
+mcp-newsapi (JVM) → shared (commonMain)
+notes (JVM) → shared (commonMain)
 shared (commonMain) - платформо-независимые модели
 ```
 
 ### shared
 
-- Модели данных: `ChatMessage`, `ChatResponse`, `SendMessageRequest`, `SenderType`, `ResponseStatus`
+- **Chat модели**: `ChatMessage`, `ChatResponse`, `SendMessageRequest`, `SenderType`, `ResponseStatus`
+- **News модели**: `Article`, `Source`, `CreateArticleRequest`, `UpdateArticleRequest`
+- **Notes модели**: `Note`, `NotePriority`, `CreateNoteRequest`, `UpdateNoteRequest`
 - Константы: `SERVER_PORT = 8080`
 - Source sets: `commonMain`, `jsMain`, `jvmMain`, `wasmJsMain`
 
@@ -47,21 +53,124 @@ shared (commonMain) - платформо-независимые модели
 - `viewmodel/ChatViewModel.kt` - MVVM state management (StateFlow)
 - `api/ChatApi.kt` - HTTP client
 
+### news-crud
+
+**Описание**: REST API сервер для CRUD операций с новостными статьями, с PostgreSQL хранилищем.
+
+**Порт**: 8081
+
+**Ключевые компоненты**:
+
+- `Application.kt` - точка входа (Ktor Netty)
+- `database/ArticlesTable.kt` - Exposed table schema
+- `database/DatabaseFactory.kt` - HikariCP connection pool
+- `repository/NewsRepository.kt` - CRUD операции с БД (coroutines + newSuspendedTransaction)
+- `service/NewsService.kt` - бизнес-логика и валидация
+- `routing/NewsRouting.kt` - REST endpoints
+- `di/AppModule.kt` - Koin DI
+
+**REST API** (`/api/news`):
+
+- `GET /api/news?limit={}&offset={}` - список статей с пагинацией
+- `GET /api/news/search?q={query}` - поиск по title/description/content
+- `GET /api/news/{id}` - получить статью по ID
+- `POST /api/news` - создать статью
+- `PUT /api/news/{id}` - обновить статью
+- `DELETE /api/news/{id}` - удалить статью
+
+**База данных**:
+
+- PostgreSQL (Exposed ORM + HikariCP)
+- Таблица `articles` с полями: id, source_id, source_name, author, title, description, url, urlToImage, publishedAt,
+  content, createdAt, updatedAt
+- Автоматическое создание схемы при старте
+
+**Конфигурация** (application.conf):
+
+```hocon
+database {
+  url = "jdbc:postgresql://localhost:5432/newsdb"
+  url = ${?DATABASE_URL}
+  driver = "org.postgresql.Driver"
+  user = "postgres"
+  user = ${?DATABASE_USER}
+  password = "postgres"
+  password = ${?DATABASE_PASSWORD}
+  maxPoolSize = 10
+}
+```
+
+### mcp-newscrud
+
+**Описание**: MCP (Model Context Protocol) сервер, предоставляющий инструменты для работы с news-crud API.
+
+**Порты**: 8086 (HTTP), 8445 (HTTPS)
+
+**Ключевые компоненты**:
+
+- `Application.kt` - HTTP/HTTPS server setup с auto-generated SSL certificates
+- `NewsCrudMcpConfiguration.kt` - MCP server с 6 инструментами
+- `service/NewsCrudService.kt` - HTTP client для news-crud API
+
+**MCP Tools**:
+
+1. `get_all_articles` - получить все статьи (pagination: limit/offset)
+2. `get_article_by_id` - получить статью по ID
+3. `search_articles` - поиск статей по ключевым словам
+4. `create_article` - создать новую статью (required: title)
+5. `update_article` - обновить статью (required: id)
+6. `delete_article` - удалить статью (required: id)
+
+**SSL/TLS**:
+
+- Автоматическая генерация self-signed сертификатов
+- Keystore: `mcp-newscrud/src/main/resources/keystore.jks`
+- Поддержка environment variables: `SSL_KEY_ALIAS`, `SSL_KEYSTORE_PASSWORD`, `SSL_KEY_PASSWORD`
+
+**MCP Server Info**:
+
+- Name: `newscrud-mcp-server`
+- Version: `1.0.0`
+- Capabilities: Tools (Server-Sent Events via Ktor SSE)
+
 ## Команды сборки (Windows)
 
 ```bash
-# Запуск сервера
+# Запуск основного сервера (AI Chat)
 .\gradlew.bat :server:run              # production
 .\gradlew.bat :server:runDev           # dev config
+
+# Запуск news-crud API (требует PostgreSQL на localhost:5432)
+.\gradlew.bat :news-crud:run           # запуск на порту 8081
+
+# Запуск MCP серверов
+.\gradlew.bat :mcp-newscrud:run        # MCP для news-crud (HTTP: 8086, HTTPS: 8445)
+.\gradlew.bat :mcp-newsapi:run         # MCP для NewsAPI.org (HTTP: 8085, HTTPS: 8444)
 
 # Запуск frontend
 .\gradlew.bat :composeApp:wasmJsBrowserDevelopmentRun  # Wasm (рекомендуется)
 .\gradlew.bat :composeApp:jsBrowserDevelopmentRun      # JS
 
 # Сборка и тесты
-.\gradlew.bat build
-.\gradlew.bat test
-.\gradlew.bat :server:test
+.\gradlew.bat build                    # сборка всех модулей
+.\gradlew.bat :news-crud:build         # сборка только news-crud
+.\gradlew.bat :mcp-newscrud:build      # сборка только mcp-newscrud
+.\gradlew.bat test                     # все тесты
+.\gradlew.bat :server:test             # тесты server
+.\gradlew.bat :news-crud:test          # тесты news-crud
+```
+
+### Запуск полного стека (News CRUD + MCP)
+
+```bash
+# Terminal 1: PostgreSQL (Docker)
+docker run -d --name newsdb -p 5432:5432 -e POSTGRES_DB=newsdb -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres postgres:15
+
+# Terminal 2: News CRUD API
+.\gradlew.bat :news-crud:run
+
+# Terminal 3: MCP Server для News CRUD
+.\gradlew.bat :mcp-newscrud:run
 ```
 
 ## API спецификация
@@ -334,43 +443,47 @@ CMD ["./bin/server"]
 ├── gradle/libs.versions.toml
 ├── shared/
 │   └── src/commonMain/kotlin/.../models/
-│       ├── ChatMessage.kt
-│       ├── ChatResponse.kt
-│       ├── SendMessageRequest.kt
-│       ├── SenderType.kt
-│       └── ResponseStatus.kt
-├── server/
+│       ├── chat/ (ChatMessage, ChatResponse, SendMessageRequest, etc.)
+│       ├── news/ (Article, Source, CreateArticleRequest, UpdateArticleRequest)
+│       └── notes/ (Note, NotePriority, CreateNoteRequest, etc.)
+├── server/ (AI Chat Server - port 8080)
 │   └── src/main/
 │       ├── kotlin/.../
 │       │   ├── Application.kt
-│       │   ├── domain/
-│       │   │   ├── ConversationMessage.kt
-│       │   │   └── AiClient.kt
-│       │   ├── client/
-│       │   │   ├── GigaChatApiClient.kt
-│       │   │   ├── OpenAIApiClient.kt
-│       │   │   ├── GigaChatClientAdapter.kt
-│       │   │   └── OpenRouterClientAdapter.kt
-│       │   ├── service/
-│       │   │   ├── ChatService.kt
-│       │   │   ├── ProviderHandler.kt
-│       │   │   ├── OpenRouterProviderHandler.kt
-│       │   │   └── SummarizationService.kt
+│       │   ├── domain/ (ConversationMessage, AiClient)
+│       │   ├── client/ (GigaChatApiClient, OpenAIApiClient, Adapters)
+│       │   ├── service/ (ChatService, ProviderHandler, SummarizationService)
 │       │   ├── routing/ChatRouting.kt
 │       │   └── di/AppModule.kt
-│       └── resources/
-│           ├── application.conf
-│           ├── application-dev.conf
-│           ├── logback.xml
-│           └── truststore.jks
-└── composeApp/
+│       └── resources/ (application.conf, truststore.jks, logback.xml)
+├── news-crud/ (News CRUD API - port 8081)
+│   └── src/main/
+│       ├── kotlin/.../news/
+│       │   ├── Application.kt
+│       │   ├── database/ (ArticlesTable, DatabaseFactory)
+│       │   ├── repository/NewsRepository.kt
+│       │   ├── service/NewsService.kt
+│       │   ├── routing/NewsRouting.kt
+│       │   └── di/AppModule.kt
+│       └── resources/ (application.conf, logback.xml)
+├── mcp-newscrud/ (MCP Server for News CRUD - ports 8086/8445)
+│   └── src/main/
+│       ├── kotlin/.../mcp_newscrud/
+│       │   ├── Application.kt
+│       │   ├── NewsCrudMcpConfiguration.kt
+│       │   └── service/NewsCrudService.kt
+│       └── resources/ (application.conf, logback.xml, keystore.jks)
+├── mcp-newsapi/ (MCP Server for NewsAPI.org - ports 8085/8444)
+│   └── src/main/
+│       ├── kotlin/.../mcp_newsapi/
+│       │   ├── Application.kt
+│       │   ├── NewsApiConfiguration.kt
+│       │   ├── service/NewsApiService.kt
+│       │   └── models/NewsApiModels.kt
+│       └── resources/ (application.conf, logback.xml, keystore.jks)
+└── composeApp/ (Web Frontend)
     └── src/webMain/
-        ├── kotlin/.../
-        │   ├── main.kt
-        │   ├── App.kt
-        │   ├── api/ChatApi.kt
-        │   ├── ui/ChatScreen.kt
-        │   └── viewmodel/ChatViewModel.kt
+        ├── kotlin/.../ (main.kt, App.kt, ChatScreen.kt, ChatViewModel.kt)
         └── resources/index.html
 ```
 
