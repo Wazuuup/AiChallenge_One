@@ -32,7 +32,9 @@
       "Bash(timeout /t 10 /nobreak)",
       "Bash(powershell:*)",
       "WebFetch(domain:openrouter.ai)",
-      "Bash(.\\gradlew.bat :notes:build:*)"
+      "Bash(.\\gradlew.bat :notes:build:*)",
+      "Bash(cat:*)",
+      "Bash(del \"C:\\Users\\singe\\IdeaProjects\\AiChallenge_One\\composeApp\\src\\webMain\\kotlin\\ru\\sber\\cb\\aichallenge_one\\main.kt\")"
     ],
     "deny": [],
     "ask": []

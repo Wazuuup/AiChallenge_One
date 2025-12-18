@@ -1,7 +1,10 @@
 package ru.sber.cb.aichallenge_one.viewmodel
 
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,6 +56,10 @@ class ChatViewModel : ViewModel() {
 
     private val _isLoadingHistory = MutableStateFlow(false)
     val isLoadingHistory: StateFlow<Boolean> = _isLoadingHistory.asStateFlow()
+
+    val snackbarHostState = SnackbarHostState()
+
+    private val _lastShownNotificationId = MutableStateFlow<String?>(null)
 
     init {
         // Fetch models and history on initialization
@@ -203,6 +210,41 @@ class ChatViewModel : ViewModel() {
                 )
                 _messages.value = _messages.value + errorMessage
             }
+        }
+    }
+
+    suspend fun pollNotifications() {
+        while (true) {
+            try {
+                val response = chatApi.fetchNotifications()
+
+                // Show only the newest unread notification
+                val newestNotification = response.notifications.firstOrNull()
+
+                if (newestNotification != null &&
+                    newestNotification.id != _lastShownNotificationId.value
+                ) {
+
+                    // Show snackbar
+                    snackbarHostState.showSnackbar(
+                        message = "Summary: ${newestNotification.text}",
+                        actionLabel = "Dismiss",
+                        duration = SnackbarDuration.Long
+                    )
+
+                    // Mark as read
+                    chatApi.markNotificationAsRead(newestNotification.id)
+
+                    // Update last shown ID
+                    _lastShownNotificationId.value = newestNotification.id
+                }
+
+            } catch (e: Exception) {
+                println("Error polling notifications: $e")
+            }
+
+            // Wait 30 seconds before next poll
+            delay(30_000L)
         }
     }
 }

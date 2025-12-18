@@ -13,6 +13,7 @@ import io.ktor.server.routing.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.koin.core.logger.Level
+import org.koin.ktor.ext.getKoin
 import org.koin.ktor.ext.inject
 import org.koin.ktor.plugin.Koin
 import ru.sber.cb.aichallenge_one.database.DatabaseFactory
@@ -20,8 +21,10 @@ import ru.sber.cb.aichallenge_one.di.appModule
 import ru.sber.cb.aichallenge_one.routing.chatRouting
 import ru.sber.cb.aichallenge_one.routing.configureToolCallingRouting
 import ru.sber.cb.aichallenge_one.routing.modelsRouting
+import ru.sber.cb.aichallenge_one.routing.notificationRouting
 import ru.sber.cb.aichallenge_one.service.ChatService
 import ru.sber.cb.aichallenge_one.service.McpClientService
+import ru.sber.cb.aichallenge_one.service.NotificationSchedulerService
 
 fun main() {
     embeddedServer(Netty, port = SERVER_PORT, host = "0.0.0.0", module = Application::module)
@@ -150,6 +153,7 @@ fun Application.module() {
 
         chatRouting()
         modelsRouting()
+        notificationRouting()
     }
 
     // Configure tool calling routing
@@ -165,6 +169,21 @@ fun Application.module() {
         } catch (e: Exception) {
             log.warn("Failed to connect to MCP server on startup: ${e.message}")
             log.warn("You can manually connect using POST /api/tools/connect")
+        }
+    }
+
+    // Launch notification scheduler
+    val notificationScheduler = getKoin().getOrNull<NotificationSchedulerService>()
+    launch {
+        if (notificationScheduler != null) {
+            try {
+                log.info("Starting notification scheduler...")
+                notificationScheduler.start()
+            } catch (e: Exception) {
+                log.error("Notification scheduler failed", e)
+            }
+        } else {
+            log.warn("Notification scheduler not available (OpenRouter not configured)")
         }
     }
 }

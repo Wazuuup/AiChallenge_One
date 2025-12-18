@@ -2,17 +2,13 @@ package ru.sber.cb.aichallenge_one.api
 
 import io.ktor.client.*
 import io.ktor.client.call.*
-import io.ktor.client.engine.js.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import ru.sber.cb.aichallenge_one.models.ChatMessage
-import ru.sber.cb.aichallenge_one.models.ChatResponse
-import ru.sber.cb.aichallenge_one.models.ModelInfo
-import ru.sber.cb.aichallenge_one.models.SendMessageRequest
+import ru.sber.cb.aichallenge_one.models.*
 
 @Serializable
 data class OpenRouterModel(
@@ -27,7 +23,7 @@ data class ModelsListResponse(
 )
 
 class ChatApi {
-    private val client = HttpClient(Js) {
+    private val client = HttpClient {
         install(ContentNegotiation) {
             json(Json {
                 ignoreUnknownKeys = true
@@ -93,6 +89,24 @@ class ChatApi {
             println("Error fetching models: $e")
             e.printStackTrace()
             emptyList()
+        }
+    }
+
+    suspend fun fetchNotifications(): NotificationsResponse {
+        return try {
+            client.get("$serverUrl/api/notifications").body()
+        } catch (e: Exception) {
+            println("Error fetching notifications: $e")
+            NotificationsResponse(notifications = emptyList(), count = 0)
+        }
+    }
+
+    suspend fun markNotificationAsRead(notificationId: String): MarkReadResponse {
+        return try {
+            client.post("$serverUrl/api/notifications/$notificationId/read").body()
+        } catch (e: Exception) {
+            println("Error marking notification as read: $e")
+            MarkReadResponse(success = false, message = "Network error")
         }
     }
 }

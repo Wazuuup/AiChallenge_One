@@ -60,6 +60,11 @@ fun ChatScreen(
 
     var showSettings by remember { mutableStateOf(false) }
 
+    // Launch notification polling
+    LaunchedEffect(Unit) {
+        viewModel.pollNotifications()
+    }
+
     Scaffold(
         topBar = {
             EnhancedTopAppBar(
@@ -80,6 +85,12 @@ fun ChatScreen(
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
+        },
+        snackbarHost = {
+            SnackbarHost(
+                hostState = viewModel.snackbarHostState,
+                modifier = Modifier.padding(16.dp)
+            )
         }
     ) { paddingValues ->
         Row(

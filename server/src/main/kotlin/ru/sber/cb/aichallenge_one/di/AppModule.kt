@@ -145,6 +145,9 @@ fun appModule(
     // Message Repository - Persistent storage for conversation history
     single { MessageRepository() }
 
+    // Notification Repository - In-memory storage for notifications
+    single { ru.sber.cb.aichallenge_one.repository.NotificationRepository() }
+
     // Summarization Service - Universal, provider-agnostic
     single { SummarizationService(config = get()) }
 
@@ -164,6 +167,19 @@ fun appModule(
                 mcpClientService = get(),
                 toolAdapterService = get(),
                 openAIApiClient = openAIClient
+            )
+        } else {
+            null
+        }
+    }
+
+    // Notification Scheduler Service - Background job for notes summarization
+    single {
+        val toolExecService = getOrNull<ToolExecutionService>()
+        if (toolExecService != null) {
+            NotificationSchedulerService(
+                toolExecutionService = toolExecService,
+                notificationRepository = get()
             )
         } else {
             null
