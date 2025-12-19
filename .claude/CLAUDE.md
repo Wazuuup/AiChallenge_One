@@ -16,11 +16,19 @@ Kotlin Multiplatform веб-приложение для взаимодейств
 ```
 composeApp (JS/WasmJS) → shared (commonMain)
 server (JVM) → shared (commonMain)
-news-crud (JVM) → shared (commonMain)
-mcp-newscrud (JVM) → shared (commonMain)
-mcp-newsapi (JVM) → shared (commonMain)
-notes (JVM) → shared (commonMain)
 shared (commonMain) - платформо-независимые модели
+
+services/ - Backend REST API серверы
+├── services:notes (JVM) → shared (commonMain)
+├── services:news-crud (JVM) → shared (commonMain)
+└── services:notes-scheduler (JVM) - Scheduler для notes summary
+
+mcp/ - Model Context Protocol серверы
+├── mcp:notes (JVM) → shared (commonMain)
+├── mcp:newsapi (JVM) → shared (commonMain)
+├── mcp:newscrud (JVM) → shared (commonMain)
+├── mcp:notes-polling (JVM) - Docker управление для scheduler
+└── mcp:client (JVM) - MCP клиент
 ```
 
 ### shared
@@ -53,11 +61,35 @@ shared (commonMain) - платформо-независимые модели
 - `viewmodel/ChatViewModel.kt` - MVVM state management (StateFlow)
 - `api/ChatApi.kt` - HTTP client
 
-### news-crud
+### services:notes
+
+**Описание**: REST API сервер для управления заметками с PostgreSQL хранилищем.
+
+**Порт**: 8084
+
+**Ключевые компоненты**:
+
+- `Application.kt` - точка входа (Ktor Netty)
+- `database/Tables.kt` - Exposed table schema
+- `database/DatabaseFactory.kt` - HikariCP connection pool
+- `repository/NoteRepository.kt` - CRUD операции с БД
+- `service/NotesService.kt` - бизнес-логика и валидация
+- `routing/NotesRouting.kt` - REST endpoints
+- `di/NotesModule.kt` - Koin DI
+
+**REST API** (`/api/notes`):
+
+- `GET /api/notes?limit={}&offset={}` - список заметок с пагинацией
+- `GET /api/notes/{id}` - получить заметку по ID
+- `POST /api/notes` - создать заметку
+- `PUT /api/notes/{id}` - обновить заметку
+- `DELETE /api/notes/{id}` - удалить заметку
+
+### services:news-crud
 
 **Описание**: REST API сервер для CRUD операций с новостными статьями, с PostgreSQL хранилищем.
 
-**Порт**: 8081
+**Порт**: 8087
 
 **Ключевые компоненты**:
 
@@ -100,9 +132,52 @@ database {
 }
 ```
 
-### mcp-newscrud
+### mcp:notes
 
-**Описание**: MCP (Model Context Protocol) сервер, предоставляющий инструменты для работы с news-crud API.
+**Описание**: MCP (Model Context Protocol) сервер для управления заметками и курсами валют ЦБ РФ.
+
+**Порты**: 8082 (HTTP), 8443 (HTTPS)
+
+**Ключевые компоненты**:
+
+- `Application.kt` - HTTP/HTTPS server setup с auto-generated SSL certificates
+- `McpConfiguration.kt` - MCP server с инструментами для заметок и валют
+- `service/NotesApiService.kt` - HTTP client для notes API
+- `service/CurrencyExchangeService.kt` - интеграция с ЦБ РФ API
+
+**MCP Tools**:
+
+1. Notes management (CRUD операции с заметками)
+2. `get_exchange_rates` - получить курсы валют ЦБ РФ
+
+**SSL/TLS**:
+
+- Автоматическая генерация self-signed сертификатов
+- Keystore: `mcp/notes/src/main/resources/keystore.jks`
+- Поддержка environment variables: `SSL_KEY_ALIAS`, `SSL_KEYSTORE_PASSWORD`, `SSL_KEY_PASSWORD`
+
+### mcp:newsapi
+
+**Описание**: MCP сервер для интеграции с NewsAPI.org (внешний API новостей).
+
+**Порты**: 8085 (HTTP), 8444 (HTTPS)
+
+**Ключевые компоненты**:
+
+- `Application.kt` - HTTP/HTTPS server setup
+- `NewsApiConfiguration.kt` - MCP server с инструментами NewsAPI
+- `service/NewsApiService.kt` - HTTP client для newsapi.org
+- `models/NewsApiModels.kt` - модели данных NewsAPI
+
+**MCP Tools**:
+
+1. `search_news` - поиск новостей по ключевым словам
+2. `get_top_headlines` - получить топ новости
+3. `get_sources` - получить список источников новостей
+
+### mcp:newscrud
+
+**Описание**: MCP (Model Context Protocol) сервер, предоставляющий инструменты для работы с services:news-crud API.
 
 **Порты**: 8086 (HTTP), 8445 (HTTPS)
 
@@ -124,40 +199,191 @@ database {
 **SSL/TLS**:
 
 - Автоматическая генерация self-signed сертификатов
-- Keystore: `mcp-newscrud/src/main/resources/keystore.jks`
+- Keystore: `mcp/newscrud/src/main/resources/keystore.jks`
 - Поддержка environment variables: `SSL_KEY_ALIAS`, `SSL_KEYSTORE_PASSWORD`, `SSL_KEY_PASSWORD`
 
-**MCP Server Info**:
+### mcp:client
 
-- Name: `newscrud-mcp-server`
-- Version: `1.0.0`
-- Capabilities: Tools (Server-Sent Events via Ktor SSE)
+**Описание**: MCP клиент для тестирования MCP серверов.
+
+**Ключевые компоненты**:
+
+- `Application.kt` - main entry point для различных тестовых сценариев
+- `ExchangeRateClient.kt` - HTTP клиент для mcp:notes
+- `ExchangeRateClientSSL.kt` - HTTPS клиент с SSL/TLS
+
+**Использование**:
+
+```bash
+.\gradlew.bat :mcp:client:run                    # HTTP тест
+.\gradlew.bat :mcp:client:runExchangeRateSSL     # HTTPS тест
+```
+
+### services:notes-scheduler
+
+**Описание**: Scheduler сервис для периодического вызова notes summary endpoint с использованием cron expressions.
+
+**Ключевые компоненты**:
+
+- `Application.kt` - main entry point с cron scheduler логикой
+- Использует `cron-utils` для парсинга cron expressions
+- HTTP клиент для вызова MCP notes endpoint
+
+**Конфигурация** (application.conf):
+
+```hocon
+scheduler {
+    mcp_server_url = "http://localhost:8082"
+    mcp_server_url = ${?MCP_SERVER_URL}
+
+    cron_expression = "*/2 * * * *"  # каждые 2 минуты
+    cron_expression = ${?CRON_EXPRESSION}
+
+    enabled = true
+    enabled = ${?SCHEDULER_ENABLED}
+}
+```
+
+**Docker**:
+
+- Dockerfile в `services/notes-scheduler/Dockerfile`
+- Multi-stage build
+- Amazon Corretto 17 Alpine runtime
+- Поддержка `host.docker.internal` для связи с хостом
+
+**Использование**:
+
+```bash
+# Запуск напрямую
+.\gradlew.bat :services:notes-scheduler:run
+
+# Docker build и run
+docker build -t notes-scheduler:latest -f services/notes-scheduler/Dockerfile .
+docker run -d --name notes-scheduler \
+  --add-host host.docker.internal:host-gateway \
+  -e CRON_EXPRESSION="*/2 * * * *" \
+  -e MCP_SERVER_URL="http://host.docker.internal:8082" \
+  notes-scheduler:latest
+```
+
+### mcp:notes-polling
+
+**Описание**: MCP сервер для управления notes-scheduler контейнером через Docker.
+
+**Порты**: 8088 (HTTP), 8447 (HTTPS)
+
+**Ключевые компоненты**:
+
+- `Application.kt` - HTTP/HTTPS server setup
+- `McpPollingConfiguration.kt` - MCP server с Docker управлением
+- Автоматическая генерация SSL сертификатов
+
+**MCP Tools**:
+
+1. `trigger_notes_summary_polling` - билдит и запускает notes-scheduler контейнер
+    - Параметры: `cron_expression` (optional), `mcp_server_url` (optional)
+    - Автоматический build Docker image
+    - Запуск контейнера с заданными параметрами
+
+2. `stop_notes_summary_polling` - останавливает и удаляет notes-scheduler контейнер
+    - Без параметров
+    - Graceful shutdown
+
+**SSL/TLS**:
+
+- Автоматическая генерация self-signed сертификатов
+- Keystore: `mcp/notes-polling/src/main/resources/keystore.jks`
+- Environment variables: `SSL_KEY_ALIAS`, `SSL_KEYSTORE_PASSWORD`, `SSL_KEY_PASSWORD`
+
+**Использование**:
+
+```bash
+.\gradlew.bat :mcp:notes-polling:run
+```
+
+## Распределение портов
+
+| Модуль                     | HTTP Port | HTTPS Port | Описание                                     |
+|----------------------------|-----------|------------|----------------------------------------------|
+| `server`                   | 8080      | -          | AI Chat Server (GigaChat/OpenRouter)         |
+| `services:notes`           | 8084      | -          | REST API для заметок                         |
+| `services:news-crud`       | 8087      | -          | REST API для новостей                        |
+| `services:notes-scheduler` | -         | -          | Scheduler для notes summary (без сервера)    |
+| `mcp:notes`                | 8082      | 8443       | MCP Server (заметки + валюты ЦБ РФ)          |
+| `mcp:newsapi`              | 8085      | 8444       | MCP Server (NewsAPI.org)                     |
+| `mcp:newscrud`             | 8086      | 8445       | MCP Server (News CRUD proxy)                 |
+| `mcp:notes-polling`        | 8088      | 8447       | MCP Server (Docker управление для scheduler) |
+| `mcp:client`               | -         | -          | MCP Client (тестовый, не сервер)             |
 
 ## Команды сборки (Windows)
 
+**Примечание**: Все утилитарные .bat скрипты находятся в папке `scripts/`. Для запуска используйте:
+
+```bash
+scripts\run-server.bat                 # Запуск AI Chat Server с dev конфигурацией
+scripts\deploy-mcp-server.bat          # Деплой MCP сервера на удаленный сервер
+scripts\regenerate-keystore.bat        # Регенерация SSL сертификатов
+# ... и другие скрипты в scripts/
+```
+
+### Gradle команды
+
 ```bash
 # Запуск основного сервера (AI Chat)
-.\gradlew.bat :server:run              # production
+.\gradlew.bat :server:run              # production (порт 8080)
 .\gradlew.bat :server:runDev           # dev config
 
-# Запуск news-crud API (требует PostgreSQL на localhost:5432)
-.\gradlew.bat :news-crud:run           # запуск на порту 8081
+# Запуск Services (Backend REST APIs)
+.\gradlew.bat :services:notes:run      # Notes API (порт 8084)
+.\gradlew.bat :services:notes:runDev   # Notes API dev config
+.\gradlew.bat :services:news-crud:run  # News CRUD API (порт 8087)
 
 # Запуск MCP серверов
-.\gradlew.bat :mcp-newscrud:run        # MCP для news-crud (HTTP: 8086, HTTPS: 8445)
-.\gradlew.bat :mcp-newsapi:run         # MCP для NewsAPI.org (HTTP: 8085, HTTPS: 8444)
+.\gradlew.bat :mcp:notes:run           # MCP для заметок и валют (HTTP: 8082, HTTPS: 8443)
+.\gradlew.bat :mcp:newsapi:run         # MCP для NewsAPI.org (HTTP: 8085, HTTPS: 8444)
+.\gradlew.bat :mcp:newscrud:run        # MCP для news-crud (HTTP: 8086, HTTPS: 8445)
+.\gradlew.bat :mcp:notes-polling:run   # MCP для Docker управления scheduler (HTTP: 8088, HTTPS: 8447)
+
+# Запуск Scheduler Service
+.\gradlew.bat :services:notes-scheduler:run  # Notes scheduler (без веб-сервера)
+
+# Запуск MCP клиента
+.\gradlew.bat :mcp:client:run          # HTTP тест
+.\gradlew.bat :mcp:client:runExchangeRateSSL  # HTTPS тест
 
 # Запуск frontend
 .\gradlew.bat :composeApp:wasmJsBrowserDevelopmentRun  # Wasm (рекомендуется)
 .\gradlew.bat :composeApp:jsBrowserDevelopmentRun      # JS
 
 # Сборка и тесты
-.\gradlew.bat build                    # сборка всех модулей
-.\gradlew.bat :news-crud:build         # сборка только news-crud
-.\gradlew.bat :mcp-newscrud:build      # сборка только mcp-newscrud
-.\gradlew.bat test                     # все тесты
-.\gradlew.bat :server:test             # тесты server
-.\gradlew.bat :news-crud:test          # тесты news-crud
+.\gradlew.bat build                           # сборка всех модулей
+.\gradlew.bat :services:notes:build           # сборка только notes
+.\gradlew.bat :services:news-crud:build       # сборка только news-crud
+.\gradlew.bat :services:notes-scheduler:build # сборка только notes-scheduler
+.\gradlew.bat :mcp:notes:build                # сборка только mcp:notes
+.\gradlew.bat :mcp:newscrud:build             # сборка только mcp:newscrud
+.\gradlew.bat :mcp:newsapi:build              # сборка только mcp:newsapi
+.\gradlew.bat :mcp:notes-polling:build        # сборка только mcp:notes-polling
+.\gradlew.bat test                            # все тесты
+.\gradlew.bat :server:test                    # тесты server
+.\gradlew.bat :services:notes:test            # тесты notes
+.\gradlew.bat :services:news-crud:test        # тесты news-crud
+```
+
+### Запуск полного стека (Notes + MCP)
+
+```bash
+# Terminal 1: PostgreSQL (Docker)
+docker run -d --name notesdb -p 5432:5432 -e POSTGRES_DB=notesdb -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres postgres:15
+
+# Terminal 2: Notes Service
+.\gradlew.bat :services:notes:run
+
+# Terminal 3: MCP Server для Notes
+.\gradlew.bat :mcp:notes:run
+
+# Terminal 4 (optional): MCP Client тест
+.\gradlew.bat :mcp:client:run
 ```
 
 ### Запуск полного стека (News CRUD + MCP)
@@ -167,10 +393,10 @@ database {
 docker run -d --name newsdb -p 5432:5432 -e POSTGRES_DB=newsdb -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres postgres:15
 
 # Terminal 2: News CRUD API
-.\gradlew.bat :news-crud:run
+.\gradlew.bat :services:news-crud:run
 
 # Terminal 3: MCP Server для News CRUD
-.\gradlew.bat :mcp-newscrud:run
+.\gradlew.bat :mcp:newscrud:run
 ```
 
 ## API спецификация
@@ -441,12 +667,16 @@ CMD ["./bin/server"]
 ├── build.gradle.kts
 ├── settings.gradle.kts
 ├── gradle/libs.versions.toml
-├── shared/
+├── scripts/                              # Утилитарные скрипты
+│   ├── run-server.bat
+│   ├── deploy-mcp-server.bat
+│   └── ... (другие .bat скрипты)
+├── shared/                               # Общие модели данных
 │   └── src/commonMain/kotlin/.../models/
 │       ├── chat/ (ChatMessage, ChatResponse, SendMessageRequest, etc.)
 │       ├── news/ (Article, Source, CreateArticleRequest, UpdateArticleRequest)
 │       └── notes/ (Note, NotePriority, CreateNoteRequest, etc.)
-├── server/ (AI Chat Server - port 8080)
+├── server/                               # AI Chat Server - port 8080
 │   └── src/main/
 │       ├── kotlin/.../
 │       │   ├── Application.kt
@@ -456,35 +686,60 @@ CMD ["./bin/server"]
 │       │   ├── routing/ChatRouting.kt
 │       │   └── di/AppModule.kt
 │       └── resources/ (application.conf, truststore.jks, logback.xml)
-├── news-crud/ (News CRUD API - port 8081)
-│   └── src/main/
-│       ├── kotlin/.../news/
-│       │   ├── Application.kt
-│       │   ├── database/ (ArticlesTable, DatabaseFactory)
-│       │   ├── repository/NewsRepository.kt
-│       │   ├── service/NewsService.kt
-│       │   ├── routing/NewsRouting.kt
-│       │   └── di/AppModule.kt
-│       └── resources/ (application.conf, logback.xml)
-├── mcp-newscrud/ (MCP Server for News CRUD - ports 8086/8445)
-│   └── src/main/
-│       ├── kotlin/.../mcp_newscrud/
-│       │   ├── Application.kt
-│       │   ├── NewsCrudMcpConfiguration.kt
-│       │   └── service/NewsCrudService.kt
-│       └── resources/ (application.conf, logback.xml, keystore.jks)
-├── mcp-newsapi/ (MCP Server for NewsAPI.org - ports 8085/8444)
-│   └── src/main/
-│       ├── kotlin/.../mcp_newsapi/
-│       │   ├── Application.kt
-│       │   ├── NewsApiConfiguration.kt
-│       │   ├── service/NewsApiService.kt
-│       │   └── models/NewsApiModels.kt
-│       └── resources/ (application.conf, logback.xml, keystore.jks)
-└── composeApp/ (Web Frontend)
-    └── src/webMain/
-        ├── kotlin/.../ (main.kt, App.kt, ChatScreen.kt, ChatViewModel.kt)
-        └── resources/index.html
+├── composeApp/                           # Web Frontend
+│   └── src/webMain/
+│       ├── kotlin/.../ (main.kt, App.kt, ChatScreen.kt, ChatViewModel.kt)
+│       └── resources/index.html
+├── services/                             # Backend REST API Services
+│   ├── notes/                            # Notes API - port 8084
+│   │   └── src/main/
+│   │       ├── kotlin/.../notes/
+│   │       │   ├── Application.kt
+│   │       │   ├── database/ (Tables, DatabaseFactory)
+│   │       │   ├── repository/NoteRepository.kt
+│   │       │   ├── service/NotesService.kt
+│   │       │   ├── routing/NotesRouting.kt
+│   │       │   └── di/NotesModule.kt
+│   │       └── resources/ (application.conf, logback.xml)
+│   └── news-crud/                        # News CRUD API - port 8087
+│       └── src/main/
+│           ├── kotlin/.../news/
+│           │   ├── Application.kt
+│           │   ├── database/ (ArticlesTable, DatabaseFactory)
+│           │   ├── repository/NewsRepository.kt
+│           │   ├── service/NewsService.kt
+│           │   ├── routing/NewsRouting.kt
+│           │   └── di/AppModule.kt
+│           └── resources/ (application.conf, logback.xml)
+└── mcp/                                  # Model Context Protocol Servers
+    ├── notes/                            # MCP Notes+Currency - ports 8082/8443
+    │   └── src/main/
+    │       ├── kotlin/.../mcp_server/
+    │       │   ├── Application.kt
+    │       │   ├── McpConfiguration.kt
+    │       │   ├── service/ (NotesApiService, CurrencyExchangeService)
+    │       │   └── model/CbrModels.kt
+    │       └── resources/ (application.conf, logback.xml, keystore.jks)
+    ├── newsapi/                          # MCP NewsAPI - ports 8085/8444
+    │   └── src/main/
+    │       ├── kotlin/.../mcp_newsapi/
+    │       │   ├── Application.kt
+    │       │   ├── NewsApiConfiguration.kt
+    │       │   ├── service/NewsApiService.kt
+    │       │   └── models/NewsApiModels.kt
+    │       └── resources/ (application.conf, logback.xml, keystore.jks)
+    ├── newscrud/                         # MCP NewsCRUD - ports 8086/8445
+    │   └── src/main/
+    │       ├── kotlin/.../mcp_newscrud/
+    │       │   ├── Application.kt
+    │       │   ├── NewsCrudMcpConfiguration.kt
+    │       │   └── service/NewsCrudService.kt
+    │       └── resources/ (application.conf, logback.xml, keystore.jks)
+    └── client/                           # MCP Client (тестовый)
+        └── src/main/kotlin/.../mcp_client/
+            ├── Application.kt
+            ├── ExchangeRateClient.kt
+            └── ExchangeRateClientSSL.kt
 ```
 
 ## Тестирование

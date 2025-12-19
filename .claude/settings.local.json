@@ -36,7 +36,10 @@
       "Bash(cat:*)",
       "Bash(del \"C:\\Users\\singe\\IdeaProjects\\AiChallenge_One\\composeApp\\src\\webMain\\kotlin\\ru\\sber\\cb\\aichallenge_one\\main.kt\")",
       "Bash(.\\\\gradlew.bat :mcp-newsapi:build:*)",
-      "Bash(.gradlew.bat :news-crud:build --no-daemon)"
+      "Bash(.gradlew.bat :news-crud:build --no-daemon)",
+      "Bash(mkdir:*)",
+      "Bash(move run-server.bat deploy-mcp-server.bat deploy-mcp-server-simple.bat stop-mcp-server.bat view-logs.bat check-status.bat setup-ssh-key.bat regenerate-keystore.bat fix-ssl-and-test.bat rebuild-with-new-cert.bat switch-to-remote-ssl.bat regenerate-and-deploy.bat test-new-certificate.bat build-clean.bat scripts)",
+      "Bash(del:*)"
     ],
     "deny": [],
     "ask": []

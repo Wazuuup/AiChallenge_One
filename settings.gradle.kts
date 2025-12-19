@@ -32,10 +32,14 @@ dependencyResolutionManagement {
 
 include(":composeApp")
 include(":server")
-include(":mcp-server")
-include(":mcp-client")
-include(":mcp-newsapi")
 include(":shared")
-include(":notes")
-include(":news-crud")
-include(":mcp-newscrud")
+
+include(":mcp:notes")
+include(":mcp:client")
+include(":mcp:newsapi")
+include(":mcp:newscrud")
+include(":mcp:notes-polling")
+
+include(":services:notes")
+include(":services:news-crud")
+include(":services:notes-scheduler")
