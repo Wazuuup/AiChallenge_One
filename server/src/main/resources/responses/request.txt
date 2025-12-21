@@ -1,0 +1,49 @@
+Действуй как senior kotlin developer.
+Выполни ревью кода ниже и предоставь предолжения по его рефакторингу:
+suspend fun processUserMessage(
+        userText: String,
+        systemPrompt: String = "",
+        temperature: Double = 0.7,
+        provider: String = "gigachat",
+        model: String? = null
+    ): ChatResponse {
+        return try {
+            logger.info("Processing user message: $userText with temperature: $temperature, provider: $provider, model: $model")
+
+            if (provider == "openrouter") {
+                // Use OpenRouter (OpenAI-compatible API)
+                if (openAIApiClient == null) {
+                    logger.error("OpenRouter client not configured")
+                    return ChatResponse(
+                        "OpenRouter не настроен. Пожалуйста, настройте OpenAI API в конфигурации сервера.",
+                        ResponseStatus.ERROR
+                    )
+                }
+
+                // Add user message to history
+                openRouterHistory.add(OpenAIMessage(role = MessageRole.USER.value, content = userText))
+
+                // Send to OpenRouter
+                val response = openAIApiClient.sendMessage(openRouterHistory, systemPrompt, temperature)
+                logger.info("Received response from OpenRouter")
+
+                // Add assistant response to history
+                openRouterHistory.add(OpenAIMessage(role = MessageRole.ASSISTANT.value, content = response))
+
+                ChatResponse(response, ResponseStatus.SUCCESS)
+            } else {
+                // Use GigaChat (default)
+                gigaChatHistory.add(GigaChatMessage(role = MessageRole.USER.value, content = userText))
+
+                val response = gigaChatApiClient.sendMessage(gigaChatHistory, systemPrompt, temperature)
+                logger.info("Received response from GigaChat")
+
+                gigaChatHistory.add(GigaChatMessage(role = MessageRole.ASSISTANT.value, content = response))
+
+                ChatResponse(response, ResponseStatus.SUCCESS)
+            }
+        } catch (e: Exception) {
+            logger.error("Error processing user message", e)
+            ChatResponse("Возникла ошибка при получении ответа: ${e.message}", ResponseStatus.ERROR)
+        }
+    }

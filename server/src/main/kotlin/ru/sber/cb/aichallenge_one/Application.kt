@@ -10,11 +10,20 @@ import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.koin.core.logger.Level
+import org.koin.ktor.ext.getKoin
+import org.koin.ktor.ext.inject
 import org.koin.ktor.plugin.Koin
+import ru.sber.cb.aichallenge_one.database.DatabaseFactory
 import ru.sber.cb.aichallenge_one.di.appModule
 import ru.sber.cb.aichallenge_one.routing.chatRouting
+import ru.sber.cb.aichallenge_one.routing.configureToolCallingRouting
+import ru.sber.cb.aichallenge_one.routing.modelsRouting
+import ru.sber.cb.aichallenge_one.routing.notificationRouting
+import ru.sber.cb.aichallenge_one.service.ChatService
+import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
 
 fun main() {
     embeddedServer(Netty, port = SERVER_PORT, host = "0.0.0.0", module = Application::module)
@@ -61,11 +70,61 @@ fun Application.module() {
     log.info("GigaChat configuration loaded successfully")
     log.info("Client ID: ${clientId.take(10)}...")
 
+    // Load OpenAI-compatible configuration (optional)
+    val openAIBaseUrl = if (config.hasPath("openai.baseUrl")) {
+        config.getString("openai.baseUrl")
+    } else null
+
+    val openAIApiKey = if (config.hasPath("openai.apiKey")) {
+        config.getString("openai.apiKey")
+    } else null
+
+    val openAIModel = if (config.hasPath("openai.model")) {
+        config.getString("openai.model")
+    } else null
+
+    val openAIMaxTokens = if (config.hasPath("openai.maxTokens")) {
+        config.getInt("openai.maxTokens")
+    } else null
+
+    val openAITopP = if (config.hasPath("openai.topP")) {
+        config.getDouble("openai.topP")
+    } else null
+
+    if (openAIBaseUrl != null && openAIApiKey != null) {
+        log.info("OpenAI-compatible API configuration loaded successfully")
+        log.info("OpenAI Base URL: $openAIBaseUrl")
+        log.info("OpenAI Model: ${openAIModel ?: "gpt-3.5-turbo"}")
+    }
 
     install(Koin) {
         // slf4jLogger()
         printLogger(Level.DEBUG)
-        modules(appModule(gigaChatBaseUrl, gigaChatAuthUrl, clientId, clientSecret, scope))
+        modules(
+            appModule(
+                gigaChatBaseUrl, gigaChatAuthUrl, clientId, clientSecret, scope,
+                openAIBaseUrl, openAIApiKey, openAIModel, openAIMaxTokens, openAITopP
+            )
+        )
+    }
+
+    // Initialize database
+    try {
+        DatabaseFactory.init(config)
+        log.info("Database initialized successfully")
+    } catch (e: Exception) {
+        log.error("Failed to initialize database. Continuing with in-memory storage only.", e)
+    }
+
+    // Load conversation history from database
+    val chatService by inject<ChatService>()
+    launch {
+        try {
+            chatService.loadAllHistory()
+            log.info("Conversation history loaded from database")
+        } catch (e: Exception) {
+            log.error("Failed to load conversation history from database", e)
+        }
     }
 
     install(ContentNegotiation) {
@@ -85,11 +144,50 @@ fun Application.module() {
         anyHost()
     }
 
+    // Configure routing
     routing {
         get("/") {
             call.respondText("GigaChat Chat Server is running")
         }
 
         chatRouting()
+        modelsRouting()
+        notificationRouting()
     }
+
+    // Configure tool calling routing
+    configureToolCallingRouting()
+
+    // Initialize MCP connection on startup (optional - can also be done via /api/tools/connect)
+    val mcpClientServiceList: List<IMcpClientService> = getKoin().getAll<IMcpClientService>()
+    launch {
+        mcpClientServiceList.forEach { mcpClientService ->
+        try {
+            log.info("Connecting to MCP server {} on startup...", mcpClientService.javaClass.simpleName)
+            mcpClientService.connect()
+            log.info("✓ MCP server {} connected successfully", mcpClientService.javaClass.simpleName)
+        } catch (e: Exception) {
+            log.warn(
+                "Failed to connect to MCP server {} on startup: ${e.message}",
+                mcpClientService.javaClass.simpleName
+            )
+            log.warn("You can manually connect using POST /api/tools/connect")
+        }
+        }
+    }
+    /*
+        // Launch notification scheduler
+        val notificationScheduler = getKoin().getOrNull<NotificationSchedulerService>()
+        launch {
+            if (notificationScheduler != null) {
+                try {
+                    log.info("Starting notification scheduler...")
+                    notificationScheduler.start()
+                } catch (e: Exception) {
+                    log.error("Notification scheduler failed", e)
+                }
+            } else {
+                log.warn("Notification scheduler not available (OpenRouter not configured)")
+            }
+        }*/
 }

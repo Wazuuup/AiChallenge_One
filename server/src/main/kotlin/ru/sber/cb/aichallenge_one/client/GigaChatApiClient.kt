@@ -7,13 +7,21 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
+import ru.sber.cb.aichallenge_one.domain.ConversationMessage
 import java.util.*
+
+enum class MessageRole(val value: String) {
+    SYSTEM("system"),
+    USER("user"),
+    ASSISTANT("assistant"),
+    FUNCTION("function");
+}
 
 @Serializable
 data class GigaChatMessage(
-    val role: String,
-    val content: String
-)
+    override val role: String,
+    override val content: String
+) : ConversationMessage
 
 @Serializable
 data class GigaChatRequest(
@@ -88,16 +96,30 @@ class GigaChatApiClient(
         }
     }
 
-    suspend fun sendMessage(userPrompt: String): String {
+    suspend fun sendMessage(
+        messageHistory: List<GigaChatMessage>,
+        customSystemPrompt: String = "",
+        temperature: Double = 0.7
+    ): String {
         try {
             val token = getAccessToken()
 
+            val systemPromptContent = customSystemPrompt.ifBlank {
+                "Отвечай как подполковник в отставке"
+            }
+
+            val systemPrompt = GigaChatMessage(
+                role = MessageRole.SYSTEM.value,
+                content = systemPromptContent
+            )
+
             val request = GigaChatRequest(
                 model = "GigaChat",
-                messages = listOf(
-                    GigaChatMessage(role = "user", content = userPrompt)
-                )
+                messages = listOf(systemPrompt) + messageHistory,
+                temperature = temperature
             )
+
+            logger.info("Sending message to GigaChat: {}", request)
 
             val response: HttpResponse = httpClient.post("$baseUrl/chat/completions") {
                 headers {
@@ -109,7 +131,9 @@ class GigaChatApiClient(
 
             if (response.status.isSuccess()) {
                 val chatResponse: GigaChatResponse = response.body()
-                return chatResponse.choices.firstOrNull()?.message?.content
+                return chatResponse.choices.firstOrNull()?.message?.content.also {
+                    logger.info("Получен ответ от Gigachat: {}", it)
+                }
                     ?: "Получен пустой ответ от GigaChat"
             } else {
                 val errorBody = response.bodyAsText()

@@ -34,6 +34,18 @@ dependencies {
     implementation(libs.koin.ktor)
     implementation(libs.koin.slf4j)
     implementation(libs.typesafe.config)
+
+    // MCP SDK for tool calling
+    implementation(libs.mcp.sdk)
+
+    // Database
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.dao)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.exposed.javatime)
+    implementation(libs.postgresql)
+    implementation(libs.hikaricp)
+
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.kotlin.testJunit)
     //implementation("io.ktor:ktor-server-routing:3.3.1")

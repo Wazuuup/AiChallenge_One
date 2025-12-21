@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aichallenge-postgres
+    environment:
+      POSTGRES_DB: aichallenge
+      POSTGRES_USER: aichallenge
+      POSTGRES_PASSWORD: aichallenge
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U aichallenge" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aichallenge-network
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: aichallenge-server
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/aichallenge
+      DATABASE_USER: aichallenge
+      DATABASE_PASSWORD: aichallenge
+      GIGACHAT_CLIENT_ID: ${GIGACHAT_CLIENT_ID}
+      GIGACHAT_CLIENT_SECRET: ${GIGACHAT_CLIENT_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - aichallenge-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: composeApp/Dockerfile
+    container_name: aichallenge-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - aichallenge-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  aichallenge-network:
+    driver: bridge
