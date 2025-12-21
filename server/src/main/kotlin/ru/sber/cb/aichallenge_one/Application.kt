@@ -23,7 +23,6 @@ import ru.sber.cb.aichallenge_one.routing.configureToolCallingRouting
 import ru.sber.cb.aichallenge_one.routing.modelsRouting
 import ru.sber.cb.aichallenge_one.routing.notificationRouting
 import ru.sber.cb.aichallenge_one.service.ChatService
-import ru.sber.cb.aichallenge_one.service.NotificationSchedulerService
 import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
 
 fun main() {
@@ -160,9 +159,9 @@ fun Application.module() {
     configureToolCallingRouting()
 
     // Initialize MCP connection on startup (optional - can also be done via /api/tools/connect)
-    val mcpClientService: List<IMcpClientService> = getKoin().getAll<IMcpClientService>()
+    val mcpClientServiceList: List<IMcpClientService> = getKoin().getAll<IMcpClientService>()
     launch {
-        mcpClientService.forEach { mcpClientService ->
+        mcpClientServiceList.forEach { mcpClientService ->
         try {
             log.info("Connecting to MCP server {} on startup...", mcpClientService.javaClass.simpleName)
             mcpClientService.connect()
@@ -176,19 +175,19 @@ fun Application.module() {
         }
         }
     }
-
-    // Launch notification scheduler
-    val notificationScheduler = getKoin().getOrNull<NotificationSchedulerService>()
-    launch {
-        if (notificationScheduler != null) {
-            try {
-                log.info("Starting notification scheduler...")
-                notificationScheduler.start()
-            } catch (e: Exception) {
-                log.error("Notification scheduler failed", e)
+    /*
+        // Launch notification scheduler
+        val notificationScheduler = getKoin().getOrNull<NotificationSchedulerService>()
+        launch {
+            if (notificationScheduler != null) {
+                try {
+                    log.info("Starting notification scheduler...")
+                    notificationScheduler.start()
+                } catch (e: Exception) {
+                    log.error("Notification scheduler failed", e)
+                }
+            } else {
+                log.warn("Notification scheduler not available (OpenRouter not configured)")
             }
-        } else {
-            log.warn("Notification scheduler not available (OpenRouter not configured)")
-        }
-    }
+        }*/
 }

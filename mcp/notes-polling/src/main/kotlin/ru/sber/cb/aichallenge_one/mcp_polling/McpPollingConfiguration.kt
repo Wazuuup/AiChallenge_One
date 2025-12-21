@@ -23,7 +23,7 @@ fun Application.configureMcpPollingServer() {
     routing {
         // Health check endpoint
         get("/health") {
-            call.respondText("MCP Notes Polling Server is running on port $MCP_POLLING_PORT")
+            call.respondText("MCP Notes Polling Server is running on port $MCP_POLLING_PORT (HTTP) and $MCP_POLLING_SSL_PORT (HTTPS)")
         }
 
         // MCP endpoint
@@ -42,7 +42,7 @@ fun Application.configureMcpPollingServer() {
                 // Tool 1: Trigger notes summary polling
                 addTool(
                     name = "trigger_notes_summary_polling",
-                    description = "Builds and starts the notes-scheduler service as a Docker container. The scheduler will periodically trigger notes summary based on cron expression.",
+                    description = "Builds and starts the notes-scheduler service as a Docker container. The scheduler will periodically trigger /api/summary/pushToUI endpoint on the server based on cron expression.",
                     inputSchema = ToolSchema(
                         buildJsonObject {
                             put("type", "object")
@@ -54,11 +54,11 @@ fun Application.configureMcpPollingServer() {
                                         "Optional cron expression (default: '*/2 * * * *' - every 2 minutes)"
                                     )
                                 }
-                                putJsonObject("mcp_server_url") {
+                                putJsonObject("server_url") {
                                     put("type", "string")
                                     put(
                                         "description",
-                                        "Optional MCP server URL (default: 'http://host.docker.internal:8082')"
+                                        "Optional server URL (default: 'http://host.docker.internal:8080')"
                                     )
                                 }
                             }
@@ -69,9 +69,9 @@ fun Application.configureMcpPollingServer() {
                     val cronExpression = arguments.arguments
                         ?.get("cron_expression")?.jsonPrimitive?.contentOrNull
                         ?: "*/2 * * * *"
-                    val mcpServerUrl = arguments.arguments
-                        ?.get("mcp_server_url")?.jsonPrimitive?.contentOrNull
-                        ?: "http://host.docker.internal:8082"
+                    val serverUrl = arguments.arguments
+                        ?.get("server_url")?.jsonPrimitive?.contentOrNull
+                        ?: "http://host.docker.internal:8080"
 
                     runBlocking {
                         try {
@@ -94,9 +94,32 @@ fun Application.configureMcpPollingServer() {
                                     appendLine()
                                 }
 
-                                // Build Docker image
+                                // Build the application locally first
+                                val projectRoot = findProjectRoot()
+                                appendLine("Using project root: ${projectRoot.absolutePath}")
+                                appendLine()
+
+                                appendLine("Building notes-scheduler application...")
+                                val gradleBuildOutput = executeCommandWithDir(
+                                    projectRoot,
+                                    "cmd.exe",
+                                    "/c",
+                                    "gradlew.bat",
+                                    ":services:notes-scheduler:installDist",
+                                    "--no-configuration-cache"
+                                )
+
+                                if (gradleBuildOutput.contains("BUILD FAILED", ignoreCase = true)) {
+                                    appendLine("❌ Gradle build failed:")
+                                    appendLine(gradleBuildOutput.takeLast(500)) // Show last 500 chars
+                                    return@buildString
+                                }
+
+                                appendLine("✓ Application built successfully")
+                                appendLine()
+
+                                // Build Docker image with pre-built application
                                 appendLine("Building Docker image...")
-                                val projectRoot = File(".")
                                 val buildOutput = executeCommandWithDir(
                                     projectRoot,
                                     "docker",
@@ -107,8 +130,8 @@ fun Application.configureMcpPollingServer() {
                                 )
 
                                 if (buildOutput.contains("ERROR", ignoreCase = true)) {
-                                    appendLine("❌ Build failed:")
-                                    appendLine(buildOutput)
+                                    appendLine("❌ Docker build failed:")
+                                    appendLine(buildOutput.takeLast(500)) // Show last 500 chars
                                     return@buildString
                                 }
 
@@ -118,7 +141,7 @@ fun Application.configureMcpPollingServer() {
                                 // Run container
                                 appendLine("Starting container with:")
                                 appendLine("  - Cron expression: $cronExpression")
-                                appendLine("  - MCP server URL: $mcpServerUrl")
+                                appendLine("  - Server URL: $serverUrl")
                                 appendLine()
 
                                 val runOutput = executeCommand(
@@ -127,7 +150,7 @@ fun Application.configureMcpPollingServer() {
                                     "--name", CONTAINER_NAME,
                                     "--add-host", "host.docker.internal:host-gateway",
                                     "-e", "CRON_EXPRESSION=$cronExpression",
-                                    "-e", "MCP_SERVER_URL=$mcpServerUrl",
+                                    "-e", "SERVER_URL=$serverUrl",
                                     "-e", "SCHEDULER_ENABLED=true",
                                     IMAGE_NAME
                                 )
@@ -212,6 +235,26 @@ fun Application.configureMcpPollingServer() {
             }
         }
     }
+}
+
+/**
+ * Finds the project root directory by looking for build.gradle.kts
+ */
+private fun findProjectRoot(): File {
+    var currentDir = File(".").absoluteFile
+    while (currentDir != null) {
+        // Check if this directory contains build.gradle.kts (root project marker)
+        if (File(currentDir, "build.gradle.kts").exists() &&
+            File(currentDir, "settings.gradle.kts").exists()
+        ) {
+            logger.info("Found project root: ${currentDir.absolutePath}")
+            return currentDir
+        }
+        currentDir = currentDir.parentFile
+    }
+    // Fallback to current directory
+    logger.warn("Could not find project root, using current directory")
+    return File(".").absoluteFile
 }
 
 /**

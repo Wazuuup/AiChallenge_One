@@ -55,15 +55,16 @@ dependencies {
 tasks.named<JavaExec>("run") {
     environment(System.getenv())
 }
-
+/*
 tasks.register<JavaExec>("runDev") {
-    group = "application"
-    description = "Run the notes server with application-dev.conf configuration"
+group = "application"
+description = "Run the notes server with application-dev.conf configuration"
 
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("ru.sber.cb.aichallenge_one.notes.ApplicationKt")
+classpath = sourceSets["main"].runtimeClasspath
+mainClass.set("ru.sber.cb.aichallenge_one.notes.ApplicationKt")
 
-    systemProperty("config.resource", "application-dev.conf")
+systemProperty("config.resource", "application-dev.conf")
 
-    environment(System.getenv())
+environment(System.getenv())
 }
+*/

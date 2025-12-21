@@ -33,12 +33,12 @@ fun main() {
 
             // Load configuration
             val config = ConfigFactory.load()
-            val mcpServerUrl = config.getString("scheduler.mcp_server_url")
+            val serverUrl = config.getString("scheduler.server_url")
             val cronExpression = config.getString("scheduler.cron_expression")
             val enableScheduler = config.getBoolean("scheduler.enabled")
 
             logger.info("Configuration loaded:")
-            logger.info("  MCP Server URL: $mcpServerUrl")
+            logger.info("  Server URL: $serverUrl")
             logger.info("  Cron Expression: $cronExpression")
             logger.info("  Scheduler Enabled: $enableScheduler")
 
@@ -80,16 +80,16 @@ fun main() {
 
                         delay(delay)
 
-                        // Trigger summary endpoint
-                        logger.info("Triggering notes summary...")
-                        val response = httpClient.post("$mcpServerUrl/trigger-summary")
+                        // Trigger summary/pushToUI endpoint
+                        logger.info("Triggering summary push to UI...")
+                        val response = httpClient.post("$serverUrl/api/notifications/summary/pushToUI")
 
                         if (response.status.value in 200..299) {
                             val responseBody = response.bodyAsText()
-                            logger.info("Summary triggered successfully:")
+                            logger.info("Summary pushed successfully:")
                             logger.info(responseBody)
                         } else {
-                            logger.error("Failed to trigger summary. HTTP Status: ${response.status}")
+                            logger.error("Failed to push summary. HTTP Status: ${response.status}")
                         }
                     } else {
                         logger.error("No next execution time found. Exiting...")

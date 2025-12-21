@@ -17,6 +17,7 @@ import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
 import ru.sber.cb.aichallenge_one.service.mcp.impl.NewsApiMcpClientService
 import ru.sber.cb.aichallenge_one.service.mcp.impl.NewsCrudMcpClientService
 import ru.sber.cb.aichallenge_one.service.mcp.impl.NotesMcpClientService
+import ru.sber.cb.aichallenge_one.service.mcp.impl.NotesPollingMcpClientService
 import java.security.KeyStore
 import java.security.SecureRandom
 import javax.net.ssl.SSLContext
@@ -167,6 +168,10 @@ fun appModule(
 
     single {
         NewsCrudMcpClientService()
+    } bind IMcpClientService::class
+
+    single {
+        NotesPollingMcpClientService()
     } bind IMcpClientService::class
 
     // Tool Adapter Service - Converts MCP tools to OpenRouter format

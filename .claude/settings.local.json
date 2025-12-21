@@ -39,7 +39,14 @@
       "Bash(.gradlew.bat :news-crud:build --no-daemon)",
       "Bash(mkdir:*)",
       "Bash(move run-server.bat deploy-mcp-server.bat deploy-mcp-server-simple.bat stop-mcp-server.bat view-logs.bat check-status.bat setup-ssh-key.bat regenerate-keystore.bat fix-ssl-and-test.bat rebuild-with-new-cert.bat switch-to-remote-ssl.bat regenerate-and-deploy.bat test-new-certificate.bat build-clean.bat scripts)",
-      "Bash(del:*)"
+      "Bash(del:*)",
+      "Bash(git checkout:*)",
+      "Bash(.gradlew.bat :mcp:notes-polling:build --no-daemon)",
+      "Bash(docker build:*)",
+      "Bash(docker run:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker stop:*)",
+      "Bash(docker rm:*)"
     ],
     "deny": [],
     "ask": []

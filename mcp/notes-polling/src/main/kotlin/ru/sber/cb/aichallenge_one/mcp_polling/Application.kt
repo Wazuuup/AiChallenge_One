@@ -14,8 +14,8 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.security.KeyStore
 
-const val MCP_POLLING_PORT = 8088
-const val MCP_POLLING_SSL_PORT = 8447
+const val MCP_POLLING_PORT = 8089  // Note: Changed from 8088 due to port conflict
+const val MCP_POLLING_SSL_PORT = 8448
 
 fun main() {
     // Load configuration from application.conf

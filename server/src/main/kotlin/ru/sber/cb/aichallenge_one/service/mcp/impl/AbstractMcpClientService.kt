@@ -12,6 +12,7 @@ import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.Tool
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
@@ -53,6 +54,12 @@ abstract class AbstractMcpClientService(
                         isLenient = true
                     })
                 }
+                engine {
+                    endpoint {
+                        connectTimeout = 10000  // 10 seconds
+                        requestTimeout = 30000  // 30 seconds
+                    }
+                }
             }
 
             // Create MCP client
@@ -70,7 +77,9 @@ abstract class AbstractMcpClientService(
                 client = httpClient!!
             )
 
-            mcpClient!!.connect(transport)
+            withTimeout(45000) {  // 45 second timeout for the entire connect operation
+                mcpClient!!.connect(transport)
+            }
             isConnected = true
 
             logger.info("✓ Successfully connected to MCP server")

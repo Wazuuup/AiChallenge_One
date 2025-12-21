@@ -21,3 +21,10 @@ data class MarkReadResponse(
     val success: Boolean,
     val message: String = ""
 )
+
+@Serializable
+data class SummaryGenerationResponse(
+    val success: Boolean,
+    val message: String,
+    val notificationId: String? = null
+)
