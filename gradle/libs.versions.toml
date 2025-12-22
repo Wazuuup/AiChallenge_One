@@ -12,6 +12,8 @@ exposed = "0.46.0"
 postgresql = "42.7.1"
 hikaricp = "5.1.0"
 mcp-sdk = "0.8.1"
+jtokkit = "1.1.0"
+pgvector = "0.1.6"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -49,6 +51,9 @@ hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikaricp" }
 mcp-sdk = { module = "io.modelcontextprotocol:kotlin-sdk", version.ref = "mcp-sdk" }
 ktor-serverSse = { module = "io.ktor:ktor-server-sse-jvm", version.ref = "ktor" }
 ktor-networkTls = { module = "io.ktor:ktor-network-tls-certificates", version.ref = "ktor" }
+
+jtokkit = { module = "com.knuddels:jtokkit", version.ref = "jtokkit" }
+pgvector = { module = "com.pgvector:pgvector", version.ref = "pgvector" }
 
 [plugins]
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }

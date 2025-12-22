@@ -46,7 +46,8 @@
       "Bash(docker run:*)",
       "Bash(docker logs:*)",
       "Bash(docker stop:*)",
-      "Bash(docker rm:*)"
+      "Bash(docker rm:*)",
+      "Bash(.gradlew.bat :services:vectorizer:build --no-daemon)"
     ],
     "deny": [],
     "ask": []

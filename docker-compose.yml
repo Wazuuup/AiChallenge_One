@@ -20,6 +20,25 @@ services:
     networks:
       - aichallenge-network
 
+  postgres-pgvector:
+    image: pgvector/pgvector:pg16
+    container_name: aichallenge-pgvector
+    environment:
+      POSTGRES_DB: vectordb
+      POSTGRES_USER: vectoruser
+      POSTGRES_PASSWORD: vectorpass
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U vectoruser" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aichallenge-network
+
   server:
     build:
       context: .
@@ -57,6 +76,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  pgvector_data:
     driver: local
 
 networks:
