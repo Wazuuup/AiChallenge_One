@@ -67,7 +67,7 @@ class VectorizerService(
                 // Generate embeddings and store
                 var successfulChunks = 0
                 for (chunk in chunks) {
-                    val embedding = ollamaClient.generateEmbedding(chunk.text, model)
+                    val embedding: FloatArray? = ollamaClient.generateEmbedding(chunk.text, model)
 
                     if (embedding == null) {
                         errors.add("Failed to generate embedding for ${fileContent.name}:${chunk.chunkIndex}")
