@@ -33,7 +33,8 @@ fun Route.chatRouting() {
                     provider = request.provider,
                     model = request.model,
                     maxTokens = request.maxTokens,
-                    enableTools = request.enableTools
+                    enableTools = request.enableTools,
+                    useRag = request.useRag
                 )
                 call.respond(HttpStatusCode.OK, response)
             } catch (e: Exception) {

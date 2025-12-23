@@ -1,10 +1,7 @@
 package ru.sber.cb.aichallenge_one.service
 
 import org.slf4j.LoggerFactory
-import ru.sber.cb.aichallenge_one.client.GigaChatApiClient
-import ru.sber.cb.aichallenge_one.client.GigaChatClientAdapter
-import ru.sber.cb.aichallenge_one.client.GigaChatMessage
-import ru.sber.cb.aichallenge_one.client.OpenAIApiClient
+import ru.sber.cb.aichallenge_one.client.*
 import ru.sber.cb.aichallenge_one.database.MessageRepository
 import ru.sber.cb.aichallenge_one.domain.AiProvider
 import ru.sber.cb.aichallenge_one.models.ChatResponse
@@ -23,6 +20,7 @@ import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
  * - Easy to extend with new providers
  * - Persistent storage for conversation history
  * - MCP tool calling support for OpenRouter (when configured)
+ * - RAG (Retrieval-Augmented Generation) context enrichment
  *
  * @param gigaChatApiClient GigaChat API client
  * @param openAIApiClient OpenRouter/OpenAI API client (optional)
@@ -31,6 +29,7 @@ import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
  * @param mcpClientServiceList MCP client for tool calling
  * @param toolAdapterService Tool format conversion service
  * @param toolExecutionService Tool execution workflow handler (optional, requires OpenRouter)
+ * @param ragClient RAG service client for context retrieval
  */
 class ChatService(
     gigaChatApiClient: GigaChatApiClient,
@@ -39,7 +38,8 @@ class ChatService(
     messageRepository: MessageRepository,
     mcpClientServiceList: List<IMcpClientService>,
     toolAdapterService: ToolAdapterService,
-    toolExecutionService: ToolExecutionService? = null
+    toolExecutionService: ToolExecutionService? = null,
+    private val ragClient: RagClient
 ) {
     private val logger = LoggerFactory.getLogger(ChatService::class.java)
 
@@ -89,6 +89,7 @@ class ChatService(
      * @param model Model name (OpenRouter only)
      * @param maxTokens Max response tokens (OpenRouter only)
      * @param enableTools Enable MCP tool calling for OpenRouter (default: true)
+     * @param useRag Enable RAG context retrieval (default: false)
      * @return ChatResponse with AI reply and metadata
      */
     suspend fun processUserMessage(
@@ -98,21 +99,48 @@ class ChatService(
         provider: String = "gigachat",
         model: String? = null,
         maxTokens: Int? = null,
-        enableTools: Boolean = true
+        enableTools: Boolean = true,
+        useRag: Boolean = false
     ): ChatResponse {
         return try {
             val aiProvider = AiProvider.fromString(provider)
-            logger.info("Processing message [provider=${aiProvider.displayName}, temperature=$temperature, model=$model, enableTools=$enableTools]")
+            logger.info("Processing message [provider=${aiProvider.displayName}, temperature=$temperature, model=$model, enableTools=$enableTools, useRag=$useRag]")
+
+            // RAG Context Augmentation - Add context to USER prompt, not system prompt
+            val enrichedUserText = if (useRag) {
+                val ragResults = ragClient.searchSimilar(userText, limit = 5)
+                if (ragResults != null && ragResults.isNotEmpty()) {
+                    val ragContext = buildString {
+                        append("=== Relevant Context from Knowledge Base ===\n")
+                        ragResults.forEachIndexed { index, chunk ->
+                            append("${index + 1}. $chunk\n")
+                        }
+                        append("=== End of Context ===\n\n")
+                        append("User Question: $userText")
+                    }
+                    logger.info("RAG context added to user prompt: ${ragResults.size} chunks")
+                    ragContext
+                } else {
+                    logger.warn("RAG enabled but no results found or RAG service unavailable")
+                    userText
+                }
+            } else {
+                userText
+            }
 
             when (aiProvider) {
-                AiProvider.GIGACHAT -> processGigaChatMessage(userText, systemPrompt, temperature)
+                AiProvider.GIGACHAT -> processGigaChatMessage(
+                    userText = enrichedUserText,
+                    systemPrompt = systemPrompt,
+                    temperature = temperature
+                )
                 AiProvider.OPENROUTER -> processOpenRouterMessage(
-                    userText,
-                    systemPrompt,
-                    temperature,
-                    model,
-                    maxTokens,
-                    enableTools
+                    userText = enrichedUserText,
+                    systemPrompt = systemPrompt,
+                    temperature = temperature,
+                    model = model,
+                    maxTokens = maxTokens,
+                    enableTools = enableTools
                 )
             }
         } catch (e: Exception) {

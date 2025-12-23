@@ -33,6 +33,9 @@ class ChatViewModel : ViewModel() {
     private val _provider = MutableStateFlow("gigachat")
     val provider: StateFlow<String> = _provider.asStateFlow()
 
+    private val _useRag = MutableStateFlow(false)
+    val useRag: StateFlow<Boolean> = _useRag.asStateFlow()
+
     private val _selectedModel = MutableStateFlow<String?>(null)
     val selectedModel: StateFlow<String?> = _selectedModel.asStateFlow()
 
@@ -113,6 +116,10 @@ class ChatViewModel : ViewModel() {
         _selectedModel.value = modelId
     }
 
+    fun onUseRagChanged(enabled: Boolean) {
+        _useRag.value = enabled
+    }
+
     private fun fetchModels() {
         _isLoadingModels.value = true
         viewModelScope.launch {
@@ -162,7 +169,8 @@ class ChatViewModel : ViewModel() {
                     temperature = _temperature.value,
                     provider = _provider.value,
                     model = _selectedModel.value,
-                    maxTokens = _maxTokens.value
+                    maxTokens = _maxTokens.value,
+                    useRag = _useRag.value
                 )
 
                 val botMessage = if (response.status == ResponseStatus.SUCCESS) {

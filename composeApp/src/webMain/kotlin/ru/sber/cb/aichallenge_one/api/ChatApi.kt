@@ -41,12 +41,23 @@ class ChatApi {
         temperature: Double = 0.7,
         provider: String = "gigachat",
         model: String? = null,
-        maxTokens: Int? = null
+        maxTokens: Int? = null,
+        useRag: Boolean = false
     ): ChatResponse {
         return try {
             val response = client.post("$serverUrl/api/send-message") {
                 contentType(ContentType.Application.Json)
-                setBody(SendMessageRequest(text, systemPrompt, temperature, provider, model, maxTokens))
+                setBody(
+                    SendMessageRequest(
+                        text,
+                        systemPrompt,
+                        temperature,
+                        provider,
+                        model,
+                        maxTokens,
+                        useRag = useRag
+                    )
+                )
             }
             response.body()
         } catch (e: Exception) {

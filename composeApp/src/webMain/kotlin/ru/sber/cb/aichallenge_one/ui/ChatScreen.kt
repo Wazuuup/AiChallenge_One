@@ -57,6 +57,7 @@ fun ChatScreen(
     val lastResponseTokenUsage by viewModel.lastResponseTokenUsage.collectAsState()
     val responseTimeMs by viewModel.responseTimeMs.collectAsState()
     val maxTokens by viewModel.maxTokens.collectAsState()
+    val useRag by viewModel.useRag.collectAsState()
 
     var showSettings by remember { mutableStateOf(false) }
 
@@ -123,6 +124,8 @@ fun ChatScreen(
                         isLoadingModels = isLoadingModels,
                         maxTokens = maxTokens,
                         onMaxTokensChanged = viewModel::onMaxTokensChanged,
+                        useRag = useRag,
+                        onUseRagChanged = viewModel::onUseRagChanged,
                         isLoading = isLoading,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -447,6 +450,8 @@ fun SystemPromptInput(
     isLoadingModels: Boolean,
     maxTokens: Int?,
     onMaxTokensChanged: (Int?) -> Unit,
+    useRag: Boolean,
+    onUseRagChanged: (Boolean) -> Unit,
     isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -505,6 +510,24 @@ fun SystemPromptInput(
                         }
                     )
                 }
+            }
+
+            // RAG Toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = useRag,
+                    onCheckedChange = onUseRagChanged,
+                    enabled = !isLoading
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Use RAG (Retrieval-Augmented Generation)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             // Model Selector (OpenRouter only)
