@@ -10,6 +10,7 @@ import org.koin.dsl.bind
 import org.koin.dsl.module
 import ru.sber.cb.aichallenge_one.client.GigaChatApiClient
 import ru.sber.cb.aichallenge_one.client.OpenAIApiClient
+import ru.sber.cb.aichallenge_one.client.RagClient
 import ru.sber.cb.aichallenge_one.database.MessageRepository
 import ru.sber.cb.aichallenge_one.domain.SummarizationConfig
 import ru.sber.cb.aichallenge_one.service.*
@@ -139,6 +140,13 @@ fun appModule(
         }
     }
 
+    // RAG Client - Calls RAG service for context retrieval
+    single {
+        RagClient(
+            httpClient = get(org.koin.core.qualifier.named("openai"))
+        )
+    }
+
     // Summarization Configuration
     single {
         SummarizationConfig(
@@ -213,7 +221,8 @@ fun appModule(
             messageRepository = get(),
             mcpClientServiceList = getAll(),
             toolAdapterService = get(),
-            toolExecutionService = getOrNull()
+            toolExecutionService = getOrNull(),
+            ragClient = get()
         )
     }
 }

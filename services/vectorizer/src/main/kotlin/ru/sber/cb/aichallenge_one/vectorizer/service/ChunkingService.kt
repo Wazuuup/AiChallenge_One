@@ -13,7 +13,7 @@ class ChunkingService {
 
     companion object {
         const val TARGET_CHUNK_SIZE = 500
-        const val MAX_CHUNK_SIZE = 700
+        const val MAX_CHUNK_SIZE = 600
         const val MIN_CHUNK_SIZE = 200
         const val OVERLAP_SIZE = 75
     }

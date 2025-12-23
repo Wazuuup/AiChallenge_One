@@ -10,5 +10,6 @@ data class SendMessageRequest(
     val provider: String = "gigachat", // "gigachat" or "openrouter"
     val model: String? = null, // Model name for OpenRouter, null for GigaChat
     val maxTokens: Int? = null, // Maximum tokens for completion, null for default
-    val enableTools: Boolean = true // Enable MCP tool calling for OpenRouter (default: true)
+    val enableTools: Boolean = true, // Enable MCP tool calling for OpenRouter (default: true)
+    val useRag: Boolean = false // Enable RAG (Retrieval-Augmented Generation) context (default: false)
 )
