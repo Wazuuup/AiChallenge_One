@@ -15,10 +15,7 @@ import ru.sber.cb.aichallenge_one.database.MessageRepository
 import ru.sber.cb.aichallenge_one.domain.SummarizationConfig
 import ru.sber.cb.aichallenge_one.service.*
 import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
-import ru.sber.cb.aichallenge_one.service.mcp.impl.NewsApiMcpClientService
-import ru.sber.cb.aichallenge_one.service.mcp.impl.NewsCrudMcpClientService
-import ru.sber.cb.aichallenge_one.service.mcp.impl.NotesMcpClientService
-import ru.sber.cb.aichallenge_one.service.mcp.impl.NotesPollingMcpClientService
+import ru.sber.cb.aichallenge_one.service.mcp.impl.*
 import java.security.KeyStore
 import java.security.SecureRandom
 import javax.net.ssl.SSLContext
@@ -180,6 +177,10 @@ fun appModule(
 
     single {
         NotesPollingMcpClientService()
+    } bind IMcpClientService::class
+
+    single {
+        RAGMcpClientService()
     } bind IMcpClientService::class
 
     // Tool Adapter Service - Converts MCP tools to OpenRouter format

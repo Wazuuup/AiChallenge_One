@@ -36,13 +36,13 @@ class EmbeddingRepository {
                         val chunkText = rs.getString("chunk_text")
                         val distance = rs.getDouble("distance")
 
-                        if (distance > 0.2) {
-
+                        // Cosine distance: 0.0 = identical, 1.0 = orthogonal, 2.0 = opposite
+                        // Keep chunks with LOW distance (similar), skip HIGH distance (dissimilar)
+                        if (distance < 0.5) {
                             results.add(chunkText)
                             logger.debug("Found similar chunk with cosine distance: $distance")
-
                         } else {
-                            logger.debug("chunk skipped bacuse of low distance: $distance")
+                            logger.debug("Chunk skipped because of high distance: $distance (threshold: 0.5)")
                         }
 
                     }
