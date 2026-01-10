@@ -15,7 +15,7 @@ import ru.sber.cb.aichallenge_one.database.MessageRepository
 import ru.sber.cb.aichallenge_one.domain.SummarizationConfig
 import ru.sber.cb.aichallenge_one.service.*
 import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
-import ru.sber.cb.aichallenge_one.service.mcp.impl.*
+import ru.sber.cb.aichallenge_one.service.mcp.impl.RAGMcpClientService
 import java.security.KeyStore
 import java.security.SecureRandom
 import javax.net.ssl.SSLContext
@@ -163,6 +163,7 @@ fun appModule(
     single { SummarizationService(config = get()) }
 
     // MCP Client Service - Connects to local mcp-server for tool calling
+    /* TODO вернуть потом. Убрано для экономии токенов
     single {
         NotesMcpClientService()
     } bind IMcpClientService::class
@@ -178,7 +179,7 @@ fun appModule(
     single {
         NotesPollingMcpClientService()
     } bind IMcpClientService::class
-
+*/
     single {
         RAGMcpClientService()
     } bind IMcpClientService::class
