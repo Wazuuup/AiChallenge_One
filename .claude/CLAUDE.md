@@ -707,6 +707,45 @@ set GIGACHAT_CLIENT_SECRET=your-secret
 # Вариант 2: application-dev.conf (НЕ коммитить!)
 ```
 
+### OpenRouter Configuration
+
+**Environment Variables**:
+
+```bash
+# OpenRouter API ключ (обязательно для использования OpenRouter)
+set OPENAI_API_KEY=sk-or-v1-...
+set OPENAI_BASE_URL=https://openrouter.ai/api/v1
+set OPENAI_MODEL=openai/gpt-3.5-turbo  # Optional, default модель
+```
+
+**application.conf**:
+
+```hocon
+openai {
+    baseUrl = "https://openrouter.ai/api/v1"
+    baseUrl = ${?OPENAI_BASE_URL}
+    apiKey = ${?OPENAI_API_KEY}
+    model = "openai/gpt-3.5-turbo"
+    model = ${?OPENAI_MODEL}
+    maxTokens = null  # Optional
+    topP = null       # Optional
+}
+```
+
+**Важно**:
+- Для использования **бесплатных моделей** (с суффиксом `:free`), необходимо включить разрешение на обучение в [настройках конфиденциальности OpenRouter](https://openrouter.ai/settings/privacy)
+- Бесплатные модели логируют все промпты и ответы для улучшения моделей - **не используйте конфиденциальные данные**!
+- Для production рекомендуется использовать **платные модели** без суффикса `:free`
+
+**Privacy Settings**:
+
+1. Перейдите на https://openrouter.ai/settings/privacy
+2. Включите "Allow training on data" для бесплатных моделей (если планируете их использовать)
+3. Для платных моделей оставьте опцию выключенной
+4. Можно включить Zero Data Retention (ZDR) для максимальной конфиденциальности
+
+**Доступные модели**: https://openrouter.ai/models
+
 ### SSL/TLS
 
 - `truststore.jks` (пароль: "changeit") в `server/src/main/resources/`
@@ -959,9 +998,126 @@ CMD ["./bin/server"]
 
 **Запуск**: `.\gradlew.bat test` | `:server:test` | `:shared:test` | `:composeApp:test`
 
+## Недавние исправления (2026-01-10)
+
+### Исправление статистики токенов для OpenRouter с MCP tools
+
+**Проблема**: При использовании OpenRouter с MCP tools (tool calling), статистика токенов на UI отображала только последний API вызов, а не суммарные данные всех вызовов в workflow.
+
+**Решение**:
+- Добавлен `toolResponseHistory` в `OpenAIApiClient` для отдельного хранения tool calling responses
+- Метод `sendMessageWithTools()` теперь сохраняет все responses в историю
+- `OpenRouterProviderHandler.processMessageWithTools()` суммирует токены со всех API вызовов в workflow
+- Добавлены методы `getToolResponseCount()`, `getToolResponseAt()`, `getLatestToolResponse()` для доступа к истории
+
+**Файлы**:
+- `server/src/main/kotlin/ru/sber/cb/aichallenge_one/client/OpenAIApiClient.kt`
+- `server/src/main/kotlin/ru/sber/cb/aichallenge_one/service/OpenRouterProviderHandler.kt`
+
+### Исправление передачи maxTokens в OpenRouter API
+
+**Проблема**: Параметр `maxTokens` с UI формы не передавался в OpenRouter API запросы, всегда использовалось значение `null`.
+
+**Решение**:
+- Добавлен параметр `maxTokensOverride` в методы `processMessageWithTools()` и `processMessageWithMetadata()` класса `OpenRouterProviderHandler`
+- Добавлен параметр `maxTokens` в `ToolExecutionService.handleToolCallingWorkflow()`
+- `ChatService.processOpenRouterMessage()` теперь передает `maxTokens` в handler методы
+
+**Файлы**:
+- `server/src/main/kotlin/ru/sber/cb/aichallenge_one/service/ChatService.kt`
+- `server/src/main/kotlin/ru/sber/cb/aichallenge_one/service/OpenRouterProviderHandler.kt`
+- `server/src/main/kotlin/ru/sber/cb/aichallenge_one/service/ToolExecutionService.kt`
+
+### Исправление передачи model в OpenRouter API
+
+**Проблема**: Модель, выбранная на UI форме, не передавалась в OpenRouter API. Всегда использовалась модель из конфигурации (default: `gpt-3.5-turbo`).
+
+**Решение**:
+- Добавлен параметр `modelOverride` в методы `sendMessage()` и `sendMessageWithTools()` класса `OpenAIApiClient`
+- Добавлен параметр `modelOverride` в handler методы `OpenRouterProviderHandler`
+- Добавлен параметр `model` в `ToolExecutionService.handleToolCallingWorkflow()`
+- Используется логика `effectiveModel = modelOverride ?: model` для приоритета параметра с UI
+
+**Файлы**:
+- `server/src/main/kotlin/ru/sber/cb/aichallenge_one/client/OpenAIApiClient.kt`
+- `server/src/main/kotlin/ru/sber/cb/aichallenge_one/service/ChatService.kt`
+- `server/src/main/kotlin/ru/sber/cb/aichallenge_one/service/OpenRouterProviderHandler.kt`
+- `server/src/main/kotlin/ru/sber/cb/aichallenge_one/service/ToolExecutionService.kt`
+
+## Troubleshooting
+
+### OpenRouter: "No endpoints found matching your data policy"
+
+**Ошибка**:
+```json
+{
+  "error": {
+    "message": "No endpoints found matching your data policy (Free model publication)",
+    "code": 404
+  }
+}
+```
+
+**Причина**: Бесплатные модели OpenRouter (с суффиксом `:free`) требуют явного разрешения на использование данных для обучения моделей.
+
+**Решение**:
+
+1. **Вариант 1 (для тестирования)**: Разрешить обучение для бесплатных моделей
+   - Перейдите на https://openrouter.ai/settings/privacy
+   - Включите опцию "Allow training on data" для бесплатных моделей
+   - ⚠️ После этого НЕ отправляйте конфиденциальные данные через бесплатные модели!
+
+2. **Вариант 2 (рекомендуется для production)**: Используйте платные модели
+   - Выберите модель без суффикса `:free`
+   - Примеры: `openai/gpt-3.5-turbo`, `openai/gpt-4`, `anthropic/claude-3-sonnet`
+   - Список моделей: https://openrouter.ai/models
+
+**Ссылки**:
+- [OpenRouter Privacy Settings](https://openrouter.ai/settings/privacy)
+- [OpenRouter Free Models](https://openrouter.ai/collections/free-models)
+- [OpenRouter Data Collection Policy](https://openrouter.ai/docs/guides/privacy/data-collection)
+
+### Статистика токенов не обновляется
+
+**Проблема**: После отправки сообщения статистика токенов не отображается или показывает неправильные значения.
+
+**Возможные причины**:
+1. Модель не возвращает usage информацию (некоторые модели OpenRouter)
+2. Используется tool calling, но не применены последние исправления
+
+**Проверка**:
+- Проверьте логи сервера на наличие `"Token usage - Prompt: X, Completion: Y, Total: Z"`
+- Для tool calling проверьте лог `"Workflow total usage - Prompt: X, Completion: Y, Total: Z"`
+
+**Решение**:
+- Убедитесь что используется последняя версия кода (с исправлениями от 2026-01-10)
+- Попробуйте другую модель если текущая не возвращает usage данные
+
+### MCP tools не работают
+
+**Проблема**: Tool calling не срабатывает, модель не использует доступные инструменты.
+
+**Возможные причины**:
+1. Модель не поддерживает function calling (не все модели OpenRouter поддерживают)
+2. MCP сервер не запущен
+3. Tools не включены в настройках (checkbox "Enable Tools")
+
+**Проверка**:
+- В UI убедитесь что включен checkbox "Enable Tools"
+- Проверьте что MCP сервер запущен: `.\gradlew.bat :mcp:rag:run`
+- Проверьте логи: `"Found X available tools from MCP server"`
+
+**Решение**:
+- Используйте модели с поддержкой function calling (gpt-4, gpt-3.5-turbo, claude-3)
+- Запустите нужные MCP серверы перед использованием
+- Для тестирования используйте RAG: включите checkbox "Use RAG" и задайте вопрос по базе знаний
+
 ## Ссылки
 
 - [Kotlin Multiplatform](https://kotlinlang.org/docs/multiplatform.html)
 - [Compose Multiplatform](https://www.jetbrains.com/lp/compose-multiplatform/)
 - [Ktor](https://ktor.io/)
 - [Koin](https://insert-koin.io/)
+- [OpenRouter Documentation](https://openrouter.ai/docs)
+- [OpenRouter Models](https://openrouter.ai/models)
+- [OpenRouter Privacy Settings](https://openrouter.ai/settings/privacy)
