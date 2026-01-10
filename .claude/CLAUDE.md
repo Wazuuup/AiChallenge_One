@@ -21,13 +21,16 @@ shared (commonMain) - платформо-независимые модели
 services/ - Backend REST API серверы
 ├── services:notes (JVM) → shared (commonMain)
 ├── services:news-crud (JVM) → shared (commonMain)
-└── services:notes-scheduler (JVM) - Scheduler для notes summary
+├── services:notes-scheduler (JVM) - Scheduler для notes summary
+├── services:vectorizer (JVM) → shared (commonMain) - Векторизация текстов с Ollama
+└── services:rag (JVM) → shared (commonMain) - RAG поиск по векторной БД
 
 mcp/ - Model Context Protocol серверы
 ├── mcp:notes (JVM) → shared (commonMain)
 ├── mcp:newsapi (JVM) → shared (commonMain)
 ├── mcp:newscrud (JVM) → shared (commonMain)
 ├── mcp:notes-polling (JVM) - Docker управление для scheduler
+├── mcp:rag (JVM) → shared (commonMain) - MCP для RAG поиска
 └── mcp:client (JVM) - MCP клиент
 ```
 
@@ -36,6 +39,8 @@ mcp/ - Model Context Protocol серверы
 - **Chat модели**: `ChatMessage`, `ChatResponse`, `SendMessageRequest`, `SenderType`, `ResponseStatus`
 - **News модели**: `Article`, `Source`, `CreateArticleRequest`, `UpdateArticleRequest`
 - **Notes модели**: `Note`, `NotePriority`, `CreateNoteRequest`, `UpdateNoteRequest`
+- **RAG модели**: `SearchRequest`, `SearchResponse`
+- **Vectorizer модели**: `VectorizeRequest`, `VectorizeResponse`, `TextVectorizeRequest`, `TextVectorizeResponse`
 - Константы: `SERVER_PORT = 8080`
 - Source sets: `commonMain`, `jsMain`, `jvmMain`, `wasmJsMain`
 
@@ -301,6 +306,165 @@ docker run -d --name notes-scheduler \
 .\gradlew.bat :mcp:notes-polling:run
 ```
 
+### services:vectorizer
+
+**Описание**: REST API сервер для векторизации текстов с использованием Ollama embeddings и хранения в PostgreSQL с
+pgvector.
+
+**Порт**: 8090
+
+**Ключевые компоненты**:
+
+- `Application.kt` - точка входа (Ktor Netty)
+- `database/DatabaseFactory.kt` - инициализация БД с pgvector extension
+- `database/Embeddings.kt` - Exposed table schema для векторов
+- `repository/EmbeddingRepository.kt` - CRUD операции с embeddings (raw SQL для pgvector)
+- `service/VectorizerService.kt` - основной сервис векторизации
+- `service/OllamaEmbeddingClient.kt` - HTTP client для Ollama API
+- `service/ChunkingService.kt` - разбиение текста на чанки с учетом токенов
+- `service/FileProcessingService.kt` - обработка файлов (.txt, .md)
+- `routing/VectorizerRouting.kt` - REST endpoints
+- `di/VectorizerModule.kt` - Koin DI
+
+**REST API**:
+
+- `POST /api/vectorize/folder` - векторизация всех файлов в папке
+- `POST /api/vectorize` - векторизация одного текста (возвращает embedding)
+- `GET /api/embeddings/count` - количество векторов в БД
+
+**Chunking Strategy**:
+
+- Target chunk size: 500 tokens
+- Max chunk size: 600 tokens
+- Min chunk size: 200 tokens
+- Overlap: 75 tokens
+- Использует jtokkit (CL100K_BASE encoding)
+
+**База данных**:
+
+- PostgreSQL с расширением pgvector
+- Таблица `embeddings`: vector(768) для nomic-embed-text
+- HNSW index для быстрого поиска: `vector_cosine_ops`
+- Unique constraint: `(file_path, chunk_index)`
+
+**Конфигурация** (application.conf):
+
+```hocon
+database {
+  url = "jdbc:postgresql://localhost:5433/vectordb"
+  driver = "org.postgresql.Driver"
+  user = "vectoruser"
+  password = "vectorpass"
+  maxPoolSize = 10
+}
+
+ollama {
+  baseUrl = "http://localhost:11434"
+  baseUrl = ${?OLLAMA_BASE_URL}
+}
+```
+
+### services:rag
+
+**Описание**: REST API сервер для RAG (Retrieval-Augmented Generation) с векторным поиском по базе знаний.
+
+**Порт**: 8091
+
+**Ключевые компоненты**:
+
+- `Application.kt` - точка входа (Ktor Netty)
+- `database/DatabaseFactory.kt` - подключение к БД с embeddings
+- `repository/EmbeddingRepository.kt` - поиск похожих векторов (cosine distance)
+- `service/RagService.kt` - бизнес-логика RAG
+- `service/VectorizerClient.kt` - HTTP client для vectorizer API
+- `routing/RagRouting.kt` - REST endpoints
+- `di/RagModule.kt` - Koin DI
+
+**REST API**:
+
+- `POST /api/rag/search` - поиск похожих чанков по запросу
+    - Body: `{"query": "search text", "limit": 5}`
+    - Response: `{"results": ["chunk1", "chunk2", ...]}`
+
+**Алгоритм работы**:
+
+1. Получает текстовый запрос от клиента
+2. Векторизует запрос через services:vectorizer
+3. Выполняет cosine similarity search в БД (HNSW index)
+4. Фильтрует результаты по threshold (distance < 0.5)
+5. Возвращает топ-N похожих чанков
+
+**База данных**:
+
+- Использует ту же БД что и vectorizer (shared embeddings table)
+- Поиск через оператор `<=>` (cosine distance)
+- HNSW index обеспечивает быстрый поиск
+
+**Конфигурация** (application.conf):
+
+```hocon
+database {
+  url = "jdbc:postgresql://localhost:5433/vectordb"
+  driver = "org.postgresql.Driver"
+  user = "vectoruser"
+  password = "vectorpass"
+  maxPoolSize = 10
+}
+
+vectorizer {
+  url = "http://localhost:8090"
+  url = ${?VECTORIZER_URL}
+}
+```
+
+### mcp:rag
+
+**Описание**: MCP (Model Context Protocol) сервер для предоставления RAG функциональности через MCP tools.
+
+**Порты**: 8092 (HTTP), 8448 (HTTPS)
+
+**Ключевые компоненты**:
+
+- `Application.kt` - HTTP/HTTPS server setup с auto-generated SSL certificates
+- `RagMcpConfiguration.kt` - MCP server с RAG инструментами
+- `service/RagApiService.kt` - HTTP client для services:rag API
+
+**MCP Tools**:
+
+1. `search_similar_chunks` - поиск похожих текстовых чанков
+    - Параметры:
+        - `query` (string, required): поисковый запрос
+        - `limit` (integer, optional, default: 5, max: 100): количество результатов
+    - Описание: "Search for semantically similar text chunks in the RAG knowledge base using vector similarity search"
+
+**SSL/TLS**:
+
+- Автоматическая генерация self-signed сертификатов
+- Keystore: `mcp/rag/src/main/resources/keystore.jks`
+- Поддержка environment variables: `SSL_KEY_ALIAS`, `SSL_KEYSTORE_PASSWORD`, `SSL_KEY_PASSWORD`
+
+**Конфигурация** (application.conf):
+
+```hocon
+ktor {
+  deployment {
+    port = 8092
+    ssl_port = 8448
+  }
+}
+
+rag {
+  api_url = "http://localhost:8091"
+  api_url = ${?RAG_API_URL}
+}
+```
+
+**Использование**:
+
+```bash
+.\gradlew.bat :mcp:rag:run
+```
+
 ## Распределение портов
 
 | Модуль                     | HTTP Port | HTTPS Port | Описание                                     |
@@ -308,11 +472,14 @@ docker run -d --name notes-scheduler \
 | `server`                   | 8080      | -          | AI Chat Server (GigaChat/OpenRouter)         |
 | `services:notes`           | 8084      | -          | REST API для заметок                         |
 | `services:news-crud`       | 8087      | -          | REST API для новостей                        |
+| `services:vectorizer`      | 8090      | -          | REST API для векторизации текстов (Ollama)   |
+| `services:rag`             | 8091      | -          | REST API для RAG поиска                      |
 | `services:notes-scheduler` | -         | -          | Scheduler для notes summary (без сервера)    |
 | `mcp:notes`                | 8082      | 8443       | MCP Server (заметки + валюты ЦБ РФ)          |
 | `mcp:newsapi`              | 8085      | 8444       | MCP Server (NewsAPI.org)                     |
 | `mcp:newscrud`             | 8086      | 8445       | MCP Server (News CRUD proxy)                 |
 | `mcp:notes-polling`        | 8088      | 8447       | MCP Server (Docker управление для scheduler) |
+| `mcp:rag`                  | 8092      | 8448       | MCP Server (RAG поиск)                       |
 | `mcp:client`               | -         | -          | MCP Client (тестовый, не сервер)             |
 
 ## Команды сборки (Windows)
@@ -334,15 +501,18 @@ scripts\regenerate-keystore.bat        # Регенерация SSL сертиф
 .\gradlew.bat :server:runDev           # dev config
 
 # Запуск Services (Backend REST APIs)
-.\gradlew.bat :services:notes:run      # Notes API (порт 8084)
-.\gradlew.bat :services:notes:runDev   # Notes API dev config
-.\gradlew.bat :services:news-crud:run  # News CRUD API (порт 8087)
+.\gradlew.bat :services:notes:run       # Notes API (порт 8084)
+.\gradlew.bat :services:notes:runDev    # Notes API dev config
+.\gradlew.bat :services:news-crud:run   # News CRUD API (порт 8087)
+.\gradlew.bat :services:vectorizer:run  # Vectorizer API (порт 8090)
+.\gradlew.bat :services:rag:run         # RAG API (порт 8091)
 
 # Запуск MCP серверов
 .\gradlew.bat :mcp:notes:run           # MCP для заметок и валют (HTTP: 8082, HTTPS: 8443)
 .\gradlew.bat :mcp:newsapi:run         # MCP для NewsAPI.org (HTTP: 8085, HTTPS: 8444)
 .\gradlew.bat :mcp:newscrud:run        # MCP для news-crud (HTTP: 8086, HTTPS: 8445)
 .\gradlew.bat :mcp:notes-polling:run   # MCP для Docker управления scheduler (HTTP: 8088, HTTPS: 8447)
+.\gradlew.bat :mcp:rag:run             # MCP для RAG поиска (HTTP: 8092, HTTPS: 8448)
 
 # Запуск Scheduler Service
 .\gradlew.bat :services:notes-scheduler:run  # Notes scheduler (без веб-сервера)
@@ -360,14 +530,19 @@ scripts\regenerate-keystore.bat        # Регенерация SSL сертиф
 .\gradlew.bat :services:notes:build           # сборка только notes
 .\gradlew.bat :services:news-crud:build       # сборка только news-crud
 .\gradlew.bat :services:notes-scheduler:build # сборка только notes-scheduler
+.\gradlew.bat :services:vectorizer:build      # сборка только vectorizer
+.\gradlew.bat :services:rag:build             # сборка только rag
 .\gradlew.bat :mcp:notes:build                # сборка только mcp:notes
 .\gradlew.bat :mcp:newscrud:build             # сборка только mcp:newscrud
 .\gradlew.bat :mcp:newsapi:build              # сборка только mcp:newsapi
 .\gradlew.bat :mcp:notes-polling:build        # сборка только mcp:notes-polling
+.\gradlew.bat :mcp:rag:build                  # сборка только mcp:rag
 .\gradlew.bat test                            # все тесты
 .\gradlew.bat :server:test                    # тесты server
 .\gradlew.bat :services:notes:test            # тесты notes
 .\gradlew.bat :services:news-crud:test        # тесты news-crud
+.\gradlew.bat :services:vectorizer:test       # тесты vectorizer
+.\gradlew.bat :services:rag:test              # тесты rag
 ```
 
 ### Запуск полного стека (Notes + MCP)
@@ -397,6 +572,35 @@ docker run -d --name newsdb -p 5432:5432 -e POSTGRES_DB=newsdb -e POSTGRES_USER=
 
 # Terminal 3: MCP Server для News CRUD
 .\gradlew.bat :mcp:newscrud:run
+```
+
+### Запуск полного стека RAG (Vectorizer + RAG + MCP)
+
+```bash
+# Terminal 1: PostgreSQL with pgvector (Docker)
+docker run -d --name vectordb -p 5433:5432 \
+  -e POSTGRES_DB=vectordb \
+  -e POSTGRES_USER=vectoruser \
+  -e POSTGRES_PASSWORD=vectorpass \
+  pgvector/pgvector:pg16
+
+# Terminal 2: Ollama (для embeddings)
+# Установите Ollama с https://ollama.ai
+ollama pull nomic-embed-text
+
+# Terminal 3: Vectorizer Service
+.\gradlew.bat :services:vectorizer:run
+
+# Terminal 4: RAG Service
+.\gradlew.bat :services:rag:run
+
+# Terminal 5: MCP Server для RAG
+.\gradlew.bat :mcp:rag:run
+
+# Индексирование документов (опционально)
+curl -X POST http://localhost:8090/api/vectorize/folder \
+  -H "Content-Type: application/json" \
+  -d '{"folderPath": "C:\\Users\\YourUser\\Documents", "model": "nomic-embed-text"}'
 ```
 
 ## API спецификация

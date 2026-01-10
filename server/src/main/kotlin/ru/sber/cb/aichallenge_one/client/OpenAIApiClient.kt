@@ -67,6 +67,17 @@ data class TimedOpenAIResponse(
 )
 
 /**
+ * Wrapper class to store OpenAIResponseWithTools with response time
+ *
+ * @param response The OpenAI API response with tool support
+ * @param responseTimeMs Response time in milliseconds
+ */
+data class TimedOpenAIResponseWithTools(
+    val response: OpenAIResponseWithTools,
+    val responseTimeMs: Long
+)
+
+/**
  * Result of sending a message, including the response text and token usage
  *
  * @param text The response text from the AI model
@@ -103,6 +114,9 @@ class OpenAIApiClient(
     // Local variable to store copies of all OpenAIResponse objects with timing
     private val responseHistory = mutableListOf<TimedOpenAIResponse>()
 
+    // Local variable to store copies of all OpenAIResponseWithTools objects with timing
+    private val toolResponseHistory = mutableListOf<TimedOpenAIResponseWithTools>()
+
     /**
      * Send a message to the OpenAI-compatible API
      *
@@ -110,13 +124,15 @@ class OpenAIApiClient(
      * @param customSystemPrompt Custom system prompt (optional)
      * @param temperature Temperature parameter for response randomness (0.0-2.0)
      * @param maxTokensOverride Override the default maxTokens for this request (optional)
+     * @param modelOverride Override the default model for this request (optional)
      * @return OpenAIMessageResult containing response text and token usage
      */
     suspend fun sendMessage(
         messageHistory: List<OpenAIMessage>,
         customSystemPrompt: String = "",
         temperature: Double = 0.7,
-        maxTokensOverride: Int? = null
+        maxTokensOverride: Int? = null,
+        modelOverride: String? = null
     ): OpenAIMessageResult {
         try {
             val systemPromptContent = customSystemPrompt.ifBlank {
@@ -128,8 +144,10 @@ class OpenAIApiClient(
                 content = systemPromptContent
             )
 
+            val effectiveModel = modelOverride ?: model
+
             val request = OpenAIRequest(
-                model = model,
+                model = effectiveModel,
                 messages = listOf(systemPrompt) + messageHistory,
                 temperature = temperature.coerceIn(0.0, 2.0),
                 top_p = topP,
@@ -137,7 +155,7 @@ class OpenAIApiClient(
                 stream = false
             )
 
-            logger.info("Sending message to OpenAI-compatible API: model=$model, messages=${messageHistory.size + 1}")
+            logger.info("Sending message to OpenAI-compatible API: model=$effectiveModel, messages=${messageHistory.size + 1}")
 
             // Measure response time
             val startTime = System.currentTimeMillis()
@@ -230,8 +248,46 @@ class OpenAIApiClient(
      * Clear all saved responses from history
      */
     fun clearResponseHistory() {
-        logger.info("Clearing response history. Previous count: ${responseHistory.size}")
+        logger.info("Clearing response history. Previous count: ${responseHistory.size}, tool responses: ${toolResponseHistory.size}")
         responseHistory.clear()
+        toolResponseHistory.clear()
+    }
+
+    /**
+     * Get all saved tool response history with timing information
+     *
+     * @return Immutable list of all TimedOpenAIResponseWithTools objects
+     */
+    fun getToolResponseHistory(): List<TimedOpenAIResponseWithTools> {
+        return toolResponseHistory.toList()
+    }
+
+    /**
+     * Get the most recent tool response with timing
+     *
+     * @return The last TimedOpenAIResponseWithTools or null if no responses yet
+     */
+    fun getLatestToolResponse(): TimedOpenAIResponseWithTools? {
+        return toolResponseHistory.lastOrNull()
+    }
+
+    /**
+     * Get a specific tool response by index with timing
+     *
+     * @param index Index of the response (0-based)
+     * @return TimedOpenAIResponseWithTools at the given index or null if index is invalid
+     */
+    fun getToolResponseAt(index: Int): TimedOpenAIResponseWithTools? {
+        return toolResponseHistory.getOrNull(index)
+    }
+
+    /**
+     * Get the total number of tool responses saved
+     *
+     * @return Count of tool responses in history
+     */
+    fun getToolResponseCount(): Int {
+        return toolResponseHistory.size
     }
 
     /**
@@ -360,6 +416,7 @@ class OpenAIApiClient(
      * @param customSystemPrompt Custom system prompt (optional)
      * @param temperature Temperature parameter for response randomness (0.0-2.0)
      * @param maxTokensOverride Override the default maxTokens for this request (optional)
+     * @param modelOverride Override the default model for this request (optional)
      * @return OpenAIResponseWithTools containing response with possible tool calls
      */
     suspend fun sendMessageWithTools(
@@ -367,11 +424,15 @@ class OpenAIApiClient(
         tools: List<OpenRouterTool>,
         customSystemPrompt: String = "",
         temperature: Double = 0.7,
-        maxTokensOverride: Int? = null
+        maxTokensOverride: Int? = null,
+        modelOverride: String? = null
     ): OpenAIResponseWithTools {
         try {
             val systemPromptContent = customSystemPrompt.ifBlank {
-                "You are a helpful assistant with access to tools. Use the provided tools when necessary to help answer user questions."
+                "You are a helpful assistant with access to tools. " +
+                        "Use the provided tools when necessary to help answer user questions. " +
+                        "If you lack context try using provided search_similar_chunks RAG tool. " +
+                        "Always add answer source at the end of the message (did you used RAG or generated without RAG)"
             }
 
             val systemPrompt = OpenAIMessageWithTools(
@@ -379,8 +440,10 @@ class OpenAIApiClient(
                 content = systemPromptContent
             )
 
+            val effectiveModel = modelOverride ?: model
+
             val request = OpenAIRequestWithTools(
-                model = model,
+                model = effectiveModel,
                 messages = listOf(systemPrompt) + messageHistory,
                 temperature = temperature.coerceIn(0.0, 2.0),
                 top_p = topP,
@@ -390,7 +453,7 @@ class OpenAIApiClient(
                 tool_choice = if (tools.isEmpty()) null else "auto"
             )
 
-            logger.info("Sending message with ${tools.size} tools to OpenRouter API: model=$model")
+            logger.info("Sending message with ${tools.size} tools to OpenRouter API: model=$effectiveModel")
 
             val startTime = System.currentTimeMillis()
 
@@ -406,6 +469,17 @@ class OpenAIApiClient(
 
             if (response.status.isSuccess()) {
                 val chatResponse: OpenAIResponseWithTools = response.body()
+
+                // Save a copy of the response with timing to tool history
+                val timedResponse = TimedOpenAIResponseWithTools(chatResponse, responseTimeMs)
+                toolResponseHistory.add(timedResponse)
+                logger.debug(
+                    "Saved tool response to history. Response time: {}ms. Took {} promptTokens and {} completionTokens, total {}",
+                    responseTimeMs,
+                    timedResponse.response.usage?.promptTokens ?: 0,
+                    timedResponse.response.usage?.completionTokens ?: 0,
+                    timedResponse.response.usage?.totalTokens ?: 0,
+                )
 
                 logger.info("Received response from OpenRouter API: ${chatResponse.choices.firstOrNull()?.finish_reason}")
 

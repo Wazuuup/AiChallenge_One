@@ -35,12 +35,19 @@ class OpenRouterProviderHandler(
     /**
      * Process a user message with full metadata including token usage.
      *
+     * @param userText User's message
+     * @param systemPrompt Custom system prompt
+     * @param temperature Response randomness (0.0-2.0)
+     * @param maxTokensOverride Override maxTokens for this request (optional, uses constructor value if null)
+     * @param modelOverride Override model for this request (optional)
      * @return Result with response text and token usage information
      */
     suspend fun processMessageWithMetadata(
         userText: String,
         systemPrompt: String,
-        temperature: Double
+        temperature: Double,
+        maxTokensOverride: Int? = null,
+        modelOverride: String? = null
     ): OpenRouterMessageResult {
         logger.info("Processing OpenRouter message: $userText")
 
@@ -65,7 +72,8 @@ class OpenRouterProviderHandler(
             messageHistory = history.toList(),
             customSystemPrompt = systemPrompt,
             temperature = temperature,
-            maxTokensOverride = maxTokens
+            maxTokensOverride = maxTokensOverride ?: maxTokens,
+            modelOverride = modelOverride
         )
 
         logger.info("Received response from OpenRouter")
@@ -157,17 +165,21 @@ class OpenRouterProviderHandler(
      * @param userText User's message
      * @param systemPrompt Custom system prompt
      * @param temperature Response randomness (0.0-2.0)
+     * @param maxTokensOverride Override maxTokens for this request (optional, uses constructor value if null)
+     * @param modelOverride Override model for this request (optional)
      * @return Result with response text, token usage, and response time
      */
     suspend fun processMessageWithTools(
         userText: String,
         systemPrompt: String,
-        temperature: Double
+        temperature: Double,
+        maxTokensOverride: Int? = null,
+        modelOverride: String? = null
     ): OpenRouterMessageResult {
         // Validate tool execution service is available (requires OpenRouter configuration)
         if (toolExecutionService == null) {
             logger.warn("Tool execution service not available (OpenRouter not configured), falling back to regular processing")
-            return processMessageWithMetadata(userText, systemPrompt, temperature)
+            return processMessageWithMetadata(userText, systemPrompt, temperature, maxTokensOverride, modelOverride)
         }
 
         logger.info("Processing OpenRouter message with tools: $userText")
@@ -190,21 +202,56 @@ class OpenRouterProviderHandler(
             // Track start time for response time measurement
             val startTime = System.currentTimeMillis()
 
+            // Remember the starting point of response history to calculate cumulative usage for this workflow
+            // Tool calling uses sendMessageWithTools() which saves to toolResponseHistory
+            val startingToolResponseCount = openAIApiClient.getToolResponseCount()
+
             // Execute tool calling workflow
             val responseText = toolExecutionService.handleToolCallingWorkflow(
                 messageHistory = messageHistoryWithTools,
                 tools = openRouterTools,
                 userMessage = userText,
                 systemPrompt = systemPrompt,
-                temperature = temperature
+                temperature = temperature,
+                maxTokens = maxTokensOverride ?: maxTokens,
+                model = modelOverride
             )
 
             val responseTimeMs = System.currentTimeMillis() - startTime
 
-            // Extract token usage from the last response in the workflow
-            // Note: We get usage from openAIApiClient's response history
-            val lastResponse = openAIApiClient.getLatestResponse()
-            val usage = lastResponse?.response?.usage
+            // Calculate cumulative token usage from ALL tool responses in this workflow
+            // Tool calling may involve multiple API calls, so we need to sum usage from all of them
+            val endingToolResponseCount = openAIApiClient.getToolResponseCount()
+            val workflowResponsesCount = endingToolResponseCount - startingToolResponseCount
+
+            logger.debug("Tool calling workflow made $workflowResponsesCount API call(s)")
+
+            var cumulativePromptTokens = 0
+            var cumulativeCompletionTokens = 0
+            var cumulativeTotalTokens = 0
+
+            // Sum up usage from all tool responses in this workflow
+            for (i in startingToolResponseCount until endingToolResponseCount) {
+                val response = openAIApiClient.getToolResponseAt(i)
+                response?.response?.usage?.let { usage ->
+                    cumulativePromptTokens += usage.promptTokens
+                    cumulativeCompletionTokens += usage.completionTokens
+                    cumulativeTotalTokens += usage.totalTokens
+                }
+            }
+
+            val usage = if (cumulativeTotalTokens > 0) {
+                OpenAIUsage(
+                    promptTokens = cumulativePromptTokens,
+                    completionTokens = cumulativeCompletionTokens,
+                    totalTokens = cumulativeTotalTokens
+                )
+            } else {
+                // Fallback to last tool response if summing failed
+                openAIApiClient.getLatestToolResponse()?.response?.usage
+            }
+
+            logger.debug("Workflow total usage - Prompt: $cumulativePromptTokens, Completion: $cumulativeCompletionTokens, Total: $cumulativeTotalTokens")
 
             // Add user message to history
             val userMessage = OpenAIMessage(role = MessageRole.USER.value, content = userText)
@@ -238,7 +285,7 @@ class OpenRouterProviderHandler(
         } catch (e: Exception) {
             logger.error("Error in tool calling workflow, falling back to regular processing", e)
             // Fallback to regular processing if tool calling fails
-            return processMessageWithMetadata(userText, systemPrompt, temperature)
+            return processMessageWithMetadata(userText, systemPrompt, temperature, maxTokensOverride, modelOverride)
         }
     }
 }

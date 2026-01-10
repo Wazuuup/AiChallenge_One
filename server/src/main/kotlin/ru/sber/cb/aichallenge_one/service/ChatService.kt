@@ -192,10 +192,10 @@ class ChatService(
         // Route to appropriate processing method based on enableTools flag
         val result = if (enableTools) {
             logger.info("Processing with tool calling enabled")
-            openRouterHandler.processMessageWithTools(userText, systemPrompt, temperature)
+            openRouterHandler.processMessageWithTools(userText, systemPrompt, temperature, maxTokens, model)
         } else {
             logger.info("Processing without tool calling")
-            openRouterHandler.processMessageWithMetadata(userText, systemPrompt, temperature)
+            openRouterHandler.processMessageWithMetadata(userText, systemPrompt, temperature, maxTokens, model)
         }
 
         // Track last response tokens

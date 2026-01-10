@@ -50,7 +50,8 @@
       "Bash(.gradlew.bat :services:vectorizer:build --no-daemon)",
       "Bash(.gradlew.bat :services:rag:build --no-daemon)",
       "Bash(.gradlew.bat :shared:build --no-daemon)",
-      "Bash(move tasks_for_claude*.md documentationtasks)"
+      "Bash(move tasks_for_claude*.md documentationtasks)",
+      "Bash(.gradlew.bat :mcp:rag:build)"
     ],
     "deny": [],
     "ask": []

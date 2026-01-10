@@ -99,6 +99,8 @@ class ToolExecutionService(
      * @param userMessage New user message
      * @param systemPrompt Custom system prompt
      * @param temperature Temperature parameter
+     * @param maxTokens Maximum tokens for completion (optional)
+     * @param model Model override (optional)
      * @param maxIterations Maximum number of tool calling iterations to prevent infinite loops
      * @return Final assistant response text
      */
@@ -108,6 +110,8 @@ class ToolExecutionService(
         userMessage: String,
         systemPrompt: String = "",
         temperature: Double = 0.7,
+        maxTokens: Int? = null,
+        model: String? = null,
         maxIterations: Int = 5
     ): String {
         logger.info("Starting tool calling workflow with ${tools.size} available tools")
@@ -132,7 +136,9 @@ class ToolExecutionService(
                 messageHistory = messageHistory,
                 tools = tools,
                 customSystemPrompt = systemPrompt,
-                temperature = temperature
+                temperature = temperature,
+                maxTokensOverride = maxTokens,
+                modelOverride = model
             )
 
             val assistantMessage = response.choices.firstOrNull()?.message
