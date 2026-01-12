@@ -51,7 +51,8 @@
       "Bash(.gradlew.bat :services:rag:build --no-daemon)",
       "Bash(.gradlew.bat :shared:build --no-daemon)",
       "Bash(move tasks_for_claude*.md documentationtasks)",
-      "Bash(.gradlew.bat :mcp:rag:build)"
+      "Bash(.gradlew.bat :mcp:rag:build)",
+      "Bash(.\\\\gradlew.bat :mcp:git:build:*)"
     ],
     "deny": [],
     "ask": []

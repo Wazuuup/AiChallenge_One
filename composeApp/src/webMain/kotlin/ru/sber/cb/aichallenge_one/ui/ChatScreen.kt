@@ -45,7 +45,6 @@ fun ChatScreen(
 ) {
     val viewModel = remember { ChatViewModel() }
     val messages by viewModel.messages.collectAsState()
-    val inputText by viewModel.inputText.collectAsState()
     val systemPrompt by viewModel.systemPrompt.collectAsState()
     val temperature by viewModel.temperature.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -60,6 +59,13 @@ fun ChatScreen(
     val useRag by viewModel.useRag.collectAsState()
 
     var showSettings by remember { mutableStateOf(false) }
+
+    // Вычисляем hasInput без подписки на изменения inputText в main scope
+    val hasInput by remember {
+        derivedStateOf {
+            viewModel.inputText.value.isNotBlank() && !isLoading
+        }
+    }
 
     // Launch notification polling
     LaunchedEffect(Unit) {
@@ -77,7 +83,7 @@ fun ChatScreen(
             )
         },
         floatingActionButton = {
-            if (inputText.isNotBlank() && !isLoading) {
+            if (hasInput) {
                 ExtendedFloatingActionButton(
                     onClick = { viewModel.sendMessage() },
                     icon = { Icon(Icons.Filled.Send, "Send message") },
@@ -139,12 +145,9 @@ fun ChatScreen(
                         .fillMaxWidth()
                 )
 
-                // Message Input
+                // Message Input - передаём ViewModel напрямую для изоляции recomposition
                 MessageInput(
-                    inputText = inputText,
-                    onInputChanged = viewModel::onInputChanged,
-                    onSendMessage = viewModel::sendMessage,
-                    isLoading = isLoading,
+                    viewModel = viewModel,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -278,7 +281,10 @@ fun MessageList(
             modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(messages, key = { it.hashCode() }) { message ->
+            items(
+                items = messages,
+                key = { message -> message.id }  // ✅ Stable key для предотвращения лишних recomposition
+            ) { message ->
                 AnimatedMessageBubble(message)
             }
             // Extra space for FAB
@@ -324,12 +330,16 @@ fun EmptyState(modifier: Modifier = Modifier) {
 
 /**
  * Animated message bubble with enhanced MD3 styling.
+ * ✅ Оптимизировано: transition вычисляется один раз и кэшируется.
  */
 @Composable
 fun AnimatedMessageBubble(message: ChatMessage) {
-    val enterTransition = remember {
+    val isUser = message.sender == SenderType.USER
+
+    // ✅ remember с ключом для стабильности
+    val enterTransition = remember(isUser) {
         slideInHorizontally(
-            initialOffsetX = { if (message.sender == SenderType.USER) it else -it },
+            initialOffsetX = { if (isUser) it else -it },
             animationSpec = spring(stiffness = Spring.StiffnessLow)
         ) + fadeIn()
     }
@@ -651,15 +661,18 @@ fun SystemPromptInput(
 
 /**
  * Enhanced Message Input with MD3 styling.
+ * ✅ Оптимизировано: работает напрямую с ViewModel для изоляции recomposition.
+ * Изменения inputText не вызывают recomposition родительских компонентов.
  */
 @Composable
 fun MessageInput(
-    inputText: String,
-    onInputChanged: (String) -> Unit,
-    onSendMessage: () -> Unit,
-    isLoading: Boolean,
+    viewModel: ChatViewModel,
     modifier: Modifier = Modifier
 ) {
+    // ✅ Подписываемся на state только внутри этого компонента
+    val inputText by viewModel.inputText.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+
     Surface(
         modifier = modifier,
         tonalElevation = 3.dp
@@ -673,13 +686,13 @@ fun MessageInput(
         ) {
             OutlinedTextField(
                 value = inputText,
-                onValueChange = onInputChanged,
+                onValueChange = viewModel::onInputChanged,  // ✅ Прямой вызов ViewModel метода
                 modifier = Modifier
                     .weight(1f)
                     .onPreviewKeyEvent { keyEvent ->
                         if (keyEvent.key == Key.Enter && keyEvent.type == KeyEventType.KeyDown) {
                             if (!keyEvent.isShiftPressed && inputText.isNotBlank() && !isLoading) {
-                                onSendMessage()
+                                viewModel.sendMessage()
                                 true
                             } else false
                         } else false

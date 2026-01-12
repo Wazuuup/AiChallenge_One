@@ -42,7 +42,7 @@ fun Application.module() {
     // Install Koin
     install(Koin) {
         printLogger(Level.INFO)
-        modules(vectorizerModule(ollamaBaseUrl))
+        modules(vectorizerModule(ollamaBaseUrl, config))
     }
 
     // Initialize database

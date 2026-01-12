@@ -14,6 +14,7 @@ hikaricp = "5.1.0"
 mcp-sdk = "0.8.1"
 jtokkit = "1.1.0"
 pgvector = "0.1.6"
+jgit = "6.10.0.202406032230-r"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -54,6 +55,7 @@ ktor-networkTls = { module = "io.ktor:ktor-network-tls-certificates", version.re
 
 jtokkit = { module = "com.knuddels:jtokkit", version.ref = "jtokkit" }
 pgvector = { module = "com.pgvector:pgvector", version.ref = "pgvector" }
+jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version.ref = "jgit" }
 
 [plugins]
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
