@@ -156,6 +156,16 @@ class ChatViewModel : ViewModel() {
         val text = _inputText.value.trim()
         if (text.isBlank() || _isLoading.value) return
 
+        // Parse /help command: syntax is "/help <question>"
+        val isHelpCommand = text.startsWith("/help ")
+        val actualText = if (isHelpCommand) {
+            // Extract the question after "/help "
+            text.substring(6).trim()
+        } else {
+            text
+        }
+
+        // Show original message in chat (including /help prefix if present)
         val userMessage = ChatMessage(text, SenderType.USER)
         _messages.value = _messages.value + userMessage
         _inputText.value = ""
@@ -164,13 +174,14 @@ class ChatViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val response = chatApi.sendMessage(
-                    text = text,
+                    text = actualText,
                     systemPrompt = _systemPrompt.value,
                     temperature = _temperature.value,
                     provider = _provider.value,
                     model = _selectedModel.value,
                     maxTokens = _maxTokens.value,
-                    useRag = _useRag.value
+                    useRag = _useRag.value,
+                    isHelpCommand = isHelpCommand
                 )
 
                 val botMessage = if (response.status == ResponseStatus.SUCCESS) {

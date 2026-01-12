@@ -67,6 +67,15 @@ mcp/ - Model Context Protocol серверы
 - `viewmodel/ChatViewModel.kt` - MVVM state management (StateFlow)
 - `api/ChatApi.kt` - HTTP client
 
+**Команды чата**:
+
+- `/help <вопрос>` - задать вопрос по кодовой базе с использованием RAG
+    - Автоматически включает RAG (Retrieval-Augmented Generation)
+    - Использует специальный system prompt для анализа кодовой базы
+    - Ищет релевантную информацию в векторной базе знаний (mcp:rag)
+    - AI отвечает на основе найденного контекста из кодовой базы
+    - Пример: `/help Как работает автосуммаризация истории?`
+
 ### services:notes
 
 **Описание**: REST API сервер для управления заметками с PostgreSQL хранилищем.

@@ -60,7 +60,7 @@ fun Route.vectorizerRouting() {
     route("/api/vectorizeFolder") {
         post {
             try {
-                val request = call.receive<VectorizeRequest>()
+                val request = call.receive<FolderVectorizeRequest>()
 
                 // Validate folder path
                 if (request.folderPath.isBlank()) {
