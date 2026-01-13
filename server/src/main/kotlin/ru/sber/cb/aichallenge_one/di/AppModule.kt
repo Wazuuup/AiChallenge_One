@@ -15,6 +15,7 @@ import ru.sber.cb.aichallenge_one.database.MessageRepository
 import ru.sber.cb.aichallenge_one.domain.SummarizationConfig
 import ru.sber.cb.aichallenge_one.service.*
 import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
+import ru.sber.cb.aichallenge_one.service.mcp.impl.GitMcpClientService
 import ru.sber.cb.aichallenge_one.service.mcp.impl.RAGMcpClientService
 import java.security.KeyStore
 import java.security.SecureRandom
@@ -182,6 +183,10 @@ fun appModule(
 */
     single {
         RAGMcpClientService()
+    } bind IMcpClientService::class
+
+    single {
+        GitMcpClientService()
     } bind IMcpClientService::class
 
     // Tool Adapter Service - Converts MCP tools to OpenRouter format

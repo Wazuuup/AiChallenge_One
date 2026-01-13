@@ -31,6 +31,7 @@ mcp/ - Model Context Protocol серверы
 ├── mcp:newscrud (JVM) → shared (commonMain)
 ├── mcp:notes-polling (JVM) - Docker управление для scheduler
 ├── mcp:rag (JVM) → shared (commonMain) - MCP для RAG поиска
+├── mcp:git (JVM) - MCP для Git операций через JGit
 └── mcp:client (JVM) - MCP клиент
 ```
 
@@ -65,6 +66,15 @@ mcp/ - Model Context Protocol серверы
 - `ui/ChatScreen.kt` - UI компоненты
 - `viewmodel/ChatViewModel.kt` - MVVM state management (StateFlow)
 - `api/ChatApi.kt` - HTTP client
+
+**Команды чата**:
+
+- `/help <вопрос>` - задать вопрос по кодовой базе с использованием RAG
+    - Автоматически включает RAG (Retrieval-Augmented Generation)
+    - Использует специальный system prompt для анализа кодовой базы
+    - Ищет релевантную информацию в векторной базе знаний (mcp:rag)
+    - AI отвечает на основе найденного контекста из кодовой базы
+    - Пример: `/help Как работает автосуммаризация истории?`
 
 ### services:notes
 
@@ -465,6 +475,70 @@ rag {
 .\gradlew.bat :mcp:rag:run
 ```
 
+### mcp:git
+
+**Описание**: MCP (Model Context Protocol) сервер для работы с Git репозиторием через JGit библиотеку.
+
+**Порты**: 8093 (HTTP), 8449 (HTTPS)
+
+**Ключевые компоненты**:
+
+- `Application.kt` - HTTP/HTTPS server setup с auto-generated SSL certificates
+- `GitMcpConfiguration.kt` - MCP server с 12 Git инструментами
+- `service/GitService.kt` - обертка над JGit для Git операций
+
+**MCP Tools**:
+
+1. `git_status` - статус репозитория (staged/unstaged/untracked files)
+2. `git_log` - история коммитов (параметр: `max_count`, default: 10)
+3. `git_diff` - изменения в working directory
+4. `git_diff_staged` - изменения в staging area
+5. `git_branch_list` - список всех веток
+6. `git_branch_create` - создать новую ветку (параметры: `branch_name`, `checkout`)
+7. `git_checkout` - переключиться на ветку/коммит (параметр: `target`)
+8. `git_add` - добавить файлы в staging (параметр: `file_pattern`)
+9. `git_commit` - создать коммит (параметры: `message`, `author`, `email`)
+10. `git_show_file` - показать содержимое файла в коммите (параметры: `file_path`, `commit_hash`)
+11. `git_current_branch` - получить имя текущей ветки
+12. `git_remote_url` - получить URL удаленных репозиториев
+
+**SSL/TLS**:
+
+- Автоматическая генерация self-signed сертификатов
+- Keystore: `mcp/git/src/main/resources/keystore.jks`
+- Поддержка environment variables: `SSL_KEY_ALIAS`, `SSL_KEYSTORE_PASSWORD`, `SSL_KEY_PASSWORD`
+
+**Конфигурация** (application.conf):
+
+```hocon
+ktor {
+  deployment {
+    port = 8093
+    ssl_port = 8449
+  }
+}
+
+git {
+  # Path to the Git repository (default: current working directory)
+  repository_path = ${?GIT_REPO_PATH}
+}
+```
+
+**Использование**:
+
+```bash
+# Запуск для текущей директории (по умолчанию)
+.\gradlew.bat :mcp:git:run
+
+# Запуск для конкретного репозитория
+set GIT_REPO_PATH=C:\path\to\your\repo
+.\gradlew.bat :mcp:git:run
+```
+
+**Зависимости**:
+
+- JGit 6.10.0 - Java implementation of Git
+
 ## Распределение портов
 
 | Модуль                     | HTTP Port | HTTPS Port | Описание                                     |
@@ -480,6 +554,7 @@ rag {
 | `mcp:newscrud`             | 8086      | 8445       | MCP Server (News CRUD proxy)                 |
 | `mcp:notes-polling`        | 8088      | 8447       | MCP Server (Docker управление для scheduler) |
 | `mcp:rag`                  | 8092      | 8448       | MCP Server (RAG поиск)                       |
+| `mcp:git`                  | 8093      | 8449       | MCP Server (Git операции через JGit)         |
 | `mcp:client`               | -         | -          | MCP Client (тестовый, не сервер)             |
 
 ## Команды сборки (Windows)
@@ -513,6 +588,7 @@ scripts\regenerate-keystore.bat        # Регенерация SSL сертиф
 .\gradlew.bat :mcp:newscrud:run        # MCP для news-crud (HTTP: 8086, HTTPS: 8445)
 .\gradlew.bat :mcp:notes-polling:run   # MCP для Docker управления scheduler (HTTP: 8088, HTTPS: 8447)
 .\gradlew.bat :mcp:rag:run             # MCP для RAG поиска (HTTP: 8092, HTTPS: 8448)
+.\gradlew.bat :mcp:git:run             # MCP для Git операций (HTTP: 8093, HTTPS: 8449)
 
 # Запуск Scheduler Service
 .\gradlew.bat :services:notes-scheduler:run  # Notes scheduler (без веб-сервера)
@@ -537,6 +613,7 @@ scripts\regenerate-keystore.bat        # Регенерация SSL сертиф
 .\gradlew.bat :mcp:newsapi:build              # сборка только mcp:newsapi
 .\gradlew.bat :mcp:notes-polling:build        # сборка только mcp:notes-polling
 .\gradlew.bat :mcp:rag:build                  # сборка только mcp:rag
+.\gradlew.bat :mcp:git:build                  # сборка только mcp:git
 .\gradlew.bat test                            # все тесты
 .\gradlew.bat :server:test                    # тесты server
 .\gradlew.bat :services:notes:test            # тесты notes

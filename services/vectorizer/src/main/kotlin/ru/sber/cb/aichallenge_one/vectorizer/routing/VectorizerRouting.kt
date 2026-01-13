@@ -5,12 +5,10 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.koin.ktor.ext.inject
-import ru.sber.cb.aichallenge_one.models.vectorizer.TextVectorizeRequest
-import ru.sber.cb.aichallenge_one.models.vectorizer.TextVectorizeResponse
-import ru.sber.cb.aichallenge_one.models.vectorizer.VectorizeRequest
-import ru.sber.cb.aichallenge_one.models.vectorizer.VectorizeResponse
+import ru.sber.cb.aichallenge_one.models.vectorizer.*
 import ru.sber.cb.aichallenge_one.vectorizer.service.OllamaEmbeddingClient
 import ru.sber.cb.aichallenge_one.vectorizer.service.VectorizerService
+import ru.sber.cb.aichallenge_one.vectorizer.service.repository.RepositoryVectorizationService
 
 fun Route.vectorizerRouting() {
     val vectorizerService by inject<VectorizerService>()
@@ -62,7 +60,7 @@ fun Route.vectorizerRouting() {
     route("/api/vectorizeFolder") {
         post {
             try {
-                val request = call.receive<VectorizeRequest>()
+                val request = call.receive<FolderVectorizeRequest>()
 
                 // Validate folder path
                 if (request.folderPath.isBlank()) {
@@ -108,6 +106,57 @@ fun Route.vectorizerRouting() {
                 call.respond(
                     HttpStatusCode.InternalServerError,
                     VectorizeResponse(
+                        success = false,
+                        filesProcessed = 0,
+                        chunksCreated = 0,
+                        filesSkipped = emptyList(),
+                        errors = listOf(e.message ?: "Unknown error"),
+                        message = "Internal server error"
+                    )
+                )
+            }
+        }
+    }
+
+    route("/api/vectorizeRepository") {
+        post {
+            try {
+                val request = call.receive<RepositoryVectorizeRequest>()
+
+                // Validate repository path
+                if (request.repositoryPath.isBlank()) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        RepositoryVectorizeResponse(
+                            success = false,
+                            filesProcessed = 0,
+                            chunksCreated = 0,
+                            filesSkipped = emptyList(),
+                            errors = listOf("Repository path cannot be empty"),
+                            message = "Invalid request"
+                        )
+                    )
+                    return@post
+                }
+
+                call.application.environment.log.info("Vectorizing repository: ${request.repositoryPath}")
+
+                val repositoryService by inject<RepositoryVectorizationService>()
+                val response = repositoryService.vectorizeRepository(request)
+
+                val statusCode = when {
+                    !response.success -> HttpStatusCode.OK // Still return 200 but with success=false
+                    response.errors.isNotEmpty() -> HttpStatusCode.PartialContent
+                    else -> HttpStatusCode.OK
+                }
+
+                call.respond(statusCode, response)
+
+            } catch (e: Exception) {
+                call.application.environment.log.error("Error during repository vectorization", e)
+                call.respond(
+                    HttpStatusCode.InternalServerError,
+                    RepositoryVectorizeResponse(
                         success = false,
                         filesProcessed = 0,
                         chunksCreated = 0,

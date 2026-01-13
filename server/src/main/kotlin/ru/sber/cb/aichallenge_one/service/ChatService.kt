@@ -90,6 +90,7 @@ class ChatService(
      * @param maxTokens Max response tokens (OpenRouter only)
      * @param enableTools Enable MCP tool calling for OpenRouter (default: true)
      * @param useRag Enable RAG context retrieval (default: false)
+     * @param isHelpCommand Is this a /help command for codebase questions (default: false)
      * @return ChatResponse with AI reply and metadata
      */
     suspend fun processUserMessage(
@@ -100,14 +101,35 @@ class ChatService(
         model: String? = null,
         maxTokens: Int? = null,
         enableTools: Boolean = true,
-        useRag: Boolean = false
+        useRag: Boolean = false,
+        isHelpCommand: Boolean = false
     ): ChatResponse {
         return try {
             val aiProvider = AiProvider.fromString(provider)
-            logger.info("Processing message [provider=${aiProvider.displayName}, temperature=$temperature, model=$model, enableTools=$enableTools, useRag=$useRag]")
+
+            // Handle /help command: force enable RAG and add codebase-specific system prompt
+            val effectiveUseRag = useRag || isHelpCommand
+            val effectiveSystemPrompt = if (isHelpCommand) {
+                """You are an expert software development assistant specializing in codebase analysis.
+Your task is to answer questions about the codebase using the provided context from the knowledge base.
+
+Key guidelines:
+1. Base your answers primarily on the context provided from the knowledge base
+2. If the context contains relevant information, cite it and explain clearly
+3. If the context doesn't fully answer the question, mention what's available and what's missing
+4. Provide code examples when relevant
+5. Be specific about file paths, class names, and function names when they appear in the context
+6. If you're uncertain, say so - don't make assumptions beyond the provided context
+
+Answer the user's question below using the context from the knowledge base."""
+            } else {
+                systemPrompt
+            }
+
+            logger.info("Processing message [provider=${aiProvider.displayName}, temperature=$temperature, model=$model, enableTools=$enableTools, useRag=$effectiveUseRag, isHelpCommand=$isHelpCommand]")
 
             // RAG Context Augmentation - Add context to USER prompt, not system prompt
-            val enrichedUserText = if (useRag) {
+            val enrichedUserText = if (effectiveUseRag) {
                 val ragResults = ragClient.searchSimilar(userText, limit = 5)
                 if (ragResults != null && ragResults.isNotEmpty()) {
                     val ragContext = buildString {
@@ -131,12 +153,12 @@ class ChatService(
             when (aiProvider) {
                 AiProvider.GIGACHAT -> processGigaChatMessage(
                     userText = enrichedUserText,
-                    systemPrompt = systemPrompt,
+                    systemPrompt = effectiveSystemPrompt,
                     temperature = temperature
                 )
                 AiProvider.OPENROUTER -> processOpenRouterMessage(
                     userText = enrichedUserText,
-                    systemPrompt = systemPrompt,
+                    systemPrompt = effectiveSystemPrompt,
                     temperature = temperature,
                     model = model,
                     maxTokens = maxTokens,

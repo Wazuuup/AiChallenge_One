@@ -42,7 +42,8 @@ class ChatApi {
         provider: String = "gigachat",
         model: String? = null,
         maxTokens: Int? = null,
-        useRag: Boolean = false
+        useRag: Boolean = false,
+        isHelpCommand: Boolean = false
     ): ChatResponse {
         return try {
             val response = client.post("$serverUrl/api/send-message") {
@@ -55,7 +56,8 @@ class ChatApi {
                         provider,
                         model,
                         maxTokens,
-                        useRag = useRag
+                        useRag = useRag,
+                        isHelpCommand = isHelpCommand
                     )
                 )
             }

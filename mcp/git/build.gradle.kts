@@ -9,52 +9,34 @@ group = "ru.sber.cb.aichallenge_one"
 version = "1.0.0"
 
 application {
-    mainClass.set("ru.sber.cb.aichallenge_one.vectorizer.ApplicationKt")
+    mainClass.set("ru.sber.cb.aichallenge_one.mcp_git.ApplicationKt")
 
     val isDevelopment: Boolean = project.ext.has("development")
     applicationDefaultJvmArgs = listOf("-Dio.ktor.development=$isDevelopment")
 }
 
 dependencies {
-    // Shared module dependency
-    implementation(projects.shared)
+    // Shared models
+    implementation(project(":shared"))
+
+    // MCP SDK
+    implementation(libs.mcp.sdk)
+
+    // JGit for Git operations
+    implementation(libs.jgit)
 
     // Ktor Server
     implementation(libs.ktor.serverCore)
     implementation(libs.ktor.serverNetty)
     implementation(libs.ktor.serverContentNegotiation)
-    implementation(libs.ktor.serverCors)
-    implementation(libs.ktor.serverConfig)
+    implementation(libs.ktor.serverSse)
     implementation(libs.ktor.serializationKotlinxJson)
+    implementation(libs.ktor.networkTls)
 
-    // Ktor Client (for Ollama API)
+    // Ktor Client (for external API calls if needed)
     implementation(libs.ktor.clientCore)
     implementation(libs.ktor.clientCio)
     implementation(libs.ktor.clientContentNegotiation)
-    implementation(libs.ktor.clientLogging)
-
-    // Dependency Injection
-    implementation(libs.koin.core)
-    implementation(libs.koin.ktor)
-    implementation(libs.koin.slf4j)
-
-    // Configuration
-    implementation(libs.typesafe.config)
-
-    // Database
-    implementation(libs.exposed.core)
-    implementation(libs.exposed.dao)
-    implementation(libs.exposed.jdbc)
-    implementation(libs.exposed.javatime)
-    implementation(libs.postgresql)
-    implementation(libs.hikaricp)
-    implementation(libs.pgvector)
-
-    // Tokenization
-    implementation(libs.jtokkit)
-
-    // Git integration
-    implementation(libs.jgit)
 
     // Logging
     implementation(libs.logback)
@@ -66,4 +48,5 @@ dependencies {
 
 tasks.named<JavaExec>("run") {
     environment(System.getenv())
+    environment("SSL_ENABLED", true)
 }

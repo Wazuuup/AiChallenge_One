@@ -40,6 +40,7 @@ include(":mcp:newsapi")
 include(":mcp:newscrud")
 include(":mcp:notes-polling")
 include(":mcp:rag")
+include(":mcp:git")
 
 include(":services:notes")
 include(":services:news-crud")
