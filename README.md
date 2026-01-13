@@ -227,7 +227,8 @@ This error occurs when using free models without enabling data training permissi
 ## Documentation
 
 For detailed documentation, see:
-- **[.claude/CLAUDE.md](.claude/CLAUDE.md)** - Complete project documentation
+
+- **[.claude/CLAUDE.md](CLAUDE.md)** - Complete project documentation
 - Includes architecture, module descriptions, configuration, troubleshooting
 
 ---
