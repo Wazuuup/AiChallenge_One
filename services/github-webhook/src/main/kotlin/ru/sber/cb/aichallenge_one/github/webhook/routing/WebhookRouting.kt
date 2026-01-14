@@ -4,6 +4,8 @@ import io.ktor.http.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.modelcontextprotocol.kotlin.sdk.types.toJson
+import kotlinx.serialization.json.JsonObject
 import org.koin.ktor.ext.inject
 import org.slf4j.LoggerFactory
 import ru.sber.cb.aichallenge_one.github.webhook.model.WebhookPayload
@@ -37,10 +39,12 @@ fun Route.webhookRouting() {
 
             // Respond immediately with 200 OK
             call.respond(
-                HttpStatusCode.OK, mapOf(
-                    "message" to "Webhook received",
-                    "pr_number" to prNumber,
-                    "repository" to payload.repository.fullName
+                HttpStatusCode.OK, JsonObject(
+                    mapOf(
+                        "message" to "Webhook received",
+                        "pr_number" to prNumber,
+                        "repository" to payload.repository.fullName
+                    ).toJson()
                 )
             )
 

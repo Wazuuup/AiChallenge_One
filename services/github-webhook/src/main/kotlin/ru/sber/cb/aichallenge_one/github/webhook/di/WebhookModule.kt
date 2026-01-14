@@ -11,6 +11,7 @@ import org.koin.dsl.module
 import ru.sber.cb.aichallenge_one.github.webhook.client.McpGitHubClient
 import ru.sber.cb.aichallenge_one.github.webhook.client.RagApiClient
 import ru.sber.cb.aichallenge_one.github.webhook.client.ReviewApiClient
+import ru.sber.cb.aichallenge_one.github.webhook.client.mcp.GithubMcpClientService
 import ru.sber.cb.aichallenge_one.github.webhook.service.DiffAnalysisService
 import ru.sber.cb.aichallenge_one.github.webhook.service.ReviewOrchestrationService
 
@@ -70,9 +71,14 @@ fun webhookModule(
     }
 
     single {
+        GithubMcpClientService(
+            mcpServerUrl = mcpGitHubReviewerUrl
+        )
+    }
+
+    single {
         McpGitHubClient(
-            httpClient = get(),
-            mcpBaseUrl = mcpGitHubReviewerUrl
+            githubMcpClientService = get()
         )
     }
 

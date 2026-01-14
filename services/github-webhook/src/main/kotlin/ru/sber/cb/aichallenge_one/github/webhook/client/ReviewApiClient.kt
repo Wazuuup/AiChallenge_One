@@ -35,8 +35,8 @@ class ReviewApiClient(
             val request = ReviewRequest(
                 model = model,
                 messages = listOf(
-                    ReviewMessage(role = "system", content = prompt),
-                    ReviewMessage(role = "user", content = "Please review this code.")
+                    ReviewMessage(role = "system", content = getSystemPrompt()),
+                    ReviewMessage(role = "user", content = prompt)
                 ),
                 temperature = temperature,
                 maxTokens = maxTokens
@@ -77,14 +77,25 @@ class ReviewApiClient(
         }
     }
 
-    fun formatReviewPrompt(diff: String, ragContext: List<String>): String {
+
+    fun getSystemPrompt(): String {
         return buildString {
             appendLine("# Task")
             appendLine("You are an AI code reviewer analyzing a GitHub Pull Request. Provide constructive feedback focusing on:")
             appendLine("- Code style and conventions")
             appendLine("- Architectural patterns (SOLID, separation of concerns)")
             appendLine("- Potential bugs and edge cases (null checks, exception handling, race conditions)")
-            appendLine()
+
+            appendLine("# Guidelines")
+            appendLine("- Be concise and actionable")
+            appendLine("- Reference specific lines when possible (use line numbers from diff)")
+            appendLine("- Suggest concrete improvements")
+            appendLine("- If no issues found, state \"No issues found\"")
+        }
+    }
+
+    fun formatReviewPrompt(diff: String, ragContext: List<String>): String {
+        return buildString {
             appendLine("# Code Diff")
             appendLine("```")
             appendLine(diff)
@@ -104,11 +115,8 @@ class ReviewApiClient(
                 }
             }
 
-            appendLine("# Guidelines")
-            appendLine("- Be concise and actionable")
-            appendLine("- Reference specific lines when possible (use line numbers from diff)")
-            appendLine("- Suggest concrete improvements")
-            appendLine("- If no issues found, state \"No issues found\"")
+            appendLine("Please review this code.")
+
         }
     }
 
