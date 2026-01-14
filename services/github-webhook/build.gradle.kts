@@ -39,6 +39,9 @@ dependencies {
 
     // Логирование
     implementation(libs.logback)
+
+    // MCP SDK for tool calling
+    implementation(libs.mcp.sdk)
 }
 
 tasks.named<JavaExec>("run") {
