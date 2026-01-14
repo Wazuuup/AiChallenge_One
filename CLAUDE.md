@@ -548,6 +548,7 @@ set GIT_REPO_PATH=C:\path\to\your\repo
 | `services:news-crud`       | 8087      | -          | REST API для новостей                        |
 | `services:vectorizer`      | 8090      | -          | REST API для векторизации текстов (Ollama)   |
 | `services:rag`             | 8091      | -          | REST API для RAG поиска                      |
+| `services:github-webhook`  | 8094      | -          | Webhook endpoint для GitHub PR events        |
 | `services:notes-scheduler` | -         | -          | Scheduler для notes summary (без сервера)    |
 | `mcp:notes`                | 8082      | 8443       | MCP Server (заметки + валюты ЦБ РФ)          |
 | `mcp:newsapi`              | 8085      | 8444       | MCP Server (NewsAPI.org)                     |
@@ -555,6 +556,7 @@ set GIT_REPO_PATH=C:\path\to\your\repo
 | `mcp:notes-polling`        | 8088      | 8447       | MCP Server (Docker управление для scheduler) |
 | `mcp:rag`                  | 8092      | 8448       | MCP Server (RAG поиск)                       |
 | `mcp:git`                  | 8093      | 8449       | MCP Server (Git операции через JGit)         |
+| `mcp:github-reviewer`      | 8095      | 8451       | MCP Server (GitHub API tools)                |
 | `mcp:client`               | -         | -          | MCP Client (тестовый, не сервер)             |
 
 ## Команды сборки (Windows)
