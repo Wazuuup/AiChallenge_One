@@ -17,6 +17,7 @@ import ru.sber.cb.aichallenge_one.service.*
 import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
 import ru.sber.cb.aichallenge_one.service.mcp.impl.GitMcpClientService
 import ru.sber.cb.aichallenge_one.service.mcp.impl.RAGMcpClientService
+import ru.sber.cb.aichallenge_one.service.mcp.impl.TicketsMcpClientService
 import java.security.KeyStore
 import java.security.SecureRandom
 import javax.net.ssl.SSLContext
@@ -164,29 +165,17 @@ fun appModule(
     single { SummarizationService(config = get()) }
 
     // MCP Client Service - Connects to local mcp-server for tool calling
-    /* TODO вернуть потом. Убрано для экономии токенов
-    single {
-        NotesMcpClientService()
-    } bind IMcpClientService::class
 
-    single {
-        NewsApiMcpClientService()
-    } bind IMcpClientService::class
-
-    single {
-        NewsCrudMcpClientService()
-    } bind IMcpClientService::class
-
-    single {
-        NotesPollingMcpClientService()
-    } bind IMcpClientService::class
-*/
     single {
         RAGMcpClientService()
     } bind IMcpClientService::class
 
     single {
         GitMcpClientService()
+    } bind IMcpClientService::class
+
+    single {
+        TicketsMcpClientService()
     } bind IMcpClientService::class
 
     // Tool Adapter Service - Converts MCP tools to OpenRouter format

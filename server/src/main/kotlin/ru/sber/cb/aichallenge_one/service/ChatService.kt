@@ -10,6 +10,54 @@ import ru.sber.cb.aichallenge_one.models.TokenUsage
 import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
 
 /**
+ * System prompt for support agent mode (/support command)
+ */
+private const val SUPPORT_SYSTEM_PROMPT = """Ты - специалист технической поддержки приложения AiChallenge_One.
+
+Твои обязанности:
+1. Отвечать на вопросы пользователей о приложении
+2. Создавать тикеты поддержки для новых проблем
+3. Находить и обновлять существующие тикеты
+4. Закрывать решённые тикеты
+
+При ответе на вопросы:
+- Используй RAG для поиска информации в кодовой базе (контекст уже добавлен к сообщению)
+- Используй MCP tools для работы с тикетами поддержки
+- Комбинируй информацию из обоих источников для наиболее полного ответа
+
+О приложении:
+- Kotlin Multiplatform веб-приложение для AI чата (GigaChat/OpenRouter)
+- Compose Multiplatform frontend, Ktor backend
+- MCP серверы для различных интеграций
+- RAG на базе векторного поиска (Ollama + pgvector)
+
+Доступные MCP tools для работы с тикетами:
+- create_ticket: создать новый тикет (требуется title и description)
+- get_ticket: получить тикет по ID
+- update_ticket: обновить тикет
+- list_tickets: получить список всех тикетов
+- filter_by_initiator: найти тикеты по инициатору
+- filter_by_title: найти тикеты по названию
+- filter_by_priority: найти тикеты по приоритету
+- filter_by_status: найти тикеты по статусу (open/closed)
+- search_description: поиск по описанию тикетов
+- close_ticket: закрыть тикет
+
+При создании тикета:
+- Обязательно спроси имя или email инициатора
+- Установи приоритет на основе срочности проблемы (1-5, где 5 - критический)
+- Дай понятное название и подробное описание
+
+Приоритеты:
+- 1: низкий (вопросы, запросы на улучшение)
+- 2: ниже среднего (мелкие неудобства)
+- 3: средний (обычные проблемы)
+- 4: высокий (серьёзные проблемы, мешающие работе)
+- 5: критический (система не работает)
+
+Отвечай чётко и по делу. Не используй эмодзи."""
+
+/**
  * Refactored ChatService using Strategy pattern with ProviderHandlers.
  * Cleanly separates provider-specific logic while maintaining shared functionality.
  *
@@ -91,6 +139,7 @@ class ChatService(
      * @param enableTools Enable MCP tool calling for OpenRouter (default: true)
      * @param useRag Enable RAG context retrieval (default: false)
      * @param isHelpCommand Is this a /help command for codebase questions (default: false)
+     * @param isSupportCommand Is this a /support command for support agent mode (default: false)
      * @return ChatResponse with AI reply and metadata
      */
     suspend fun processUserMessage(
@@ -102,15 +151,19 @@ class ChatService(
         maxTokens: Int? = null,
         enableTools: Boolean = true,
         useRag: Boolean = false,
-        isHelpCommand: Boolean = false
+        isHelpCommand: Boolean = false,
+        isSupportCommand: Boolean = false
     ): ChatResponse {
         return try {
             val aiProvider = AiProvider.fromString(provider)
 
             // Handle /help command: force enable RAG and add codebase-specific system prompt
-            val effectiveUseRag = useRag || isHelpCommand
-            val effectiveSystemPrompt = if (isHelpCommand) {
-                """You are an expert software development assistant specializing in codebase analysis.
+            // Handle /support command: force enable RAG and tools, add support-specific system prompt
+            val effectiveUseRag = useRag || isHelpCommand || isSupportCommand
+            val effectiveEnableTools = enableTools || isSupportCommand
+            val effectiveSystemPrompt = when {
+                isSupportCommand -> SUPPORT_SYSTEM_PROMPT
+                isHelpCommand -> """You are an expert software development assistant specializing in codebase analysis.
 Your task is to answer questions about the codebase using the provided context from the knowledge base.
 
 Key guidelines:
@@ -122,11 +175,11 @@ Key guidelines:
 6. If you're uncertain, say so - don't make assumptions beyond the provided context
 
 Answer the user's question below using the context from the knowledge base."""
-            } else {
-                systemPrompt
+
+                else -> systemPrompt
             }
 
-            logger.info("Processing message [provider=${aiProvider.displayName}, temperature=$temperature, model=$model, enableTools=$enableTools, useRag=$effectiveUseRag, isHelpCommand=$isHelpCommand]")
+            logger.info("Processing message [provider=${aiProvider.displayName}, temperature=$temperature, model=$model, enableTools=$effectiveEnableTools, useRag=$effectiveUseRag, isHelpCommand=$isHelpCommand, isSupportCommand=$isSupportCommand]")
 
             // RAG Context Augmentation - Add context to USER prompt, not system prompt
             val enrichedUserText = if (effectiveUseRag) {
@@ -162,7 +215,7 @@ Answer the user's question below using the context from the knowledge base."""
                     temperature = temperature,
                     model = model,
                     maxTokens = maxTokens,
-                    enableTools = enableTools
+                    enableTools = effectiveEnableTools
                 )
             }
         } catch (e: Exception) {

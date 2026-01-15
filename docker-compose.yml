@@ -39,6 +39,25 @@ services:
     networks:
       - aichallenge-network
 
+  postgres-tickets:
+    image: postgres:16-alpine
+    container_name: aichallenge-tickets
+    environment:
+      POSTGRES_DB: ticketsdb
+      POSTGRES_USER: tickets
+      POSTGRES_PASSWORD: tickets
+    ports:
+      - "5434:5432"
+    volumes:
+      - tickets_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U tickets" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aichallenge-network
+
   server:
     build:
       context: .
@@ -78,6 +97,8 @@ volumes:
   postgres_data:
     driver: local
   pgvector_data:
+    driver: local
+  tickets_data:
     driver: local
 
 networks:

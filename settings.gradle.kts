@@ -42,6 +42,7 @@ include(":mcp:notes-polling")
 include(":mcp:rag")
 include(":mcp:git")
 include(":mcp:github-reviewer")
+include(":mcp:tickets")
 
 include(":services:notes")
 include(":services:news-crud")

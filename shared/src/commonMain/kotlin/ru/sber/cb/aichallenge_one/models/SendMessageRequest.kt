@@ -12,5 +12,6 @@ data class SendMessageRequest(
     val maxTokens: Int? = null, // Maximum tokens for completion, null for default
     val enableTools: Boolean = true, // Enable MCP tool calling for OpenRouter (default: true)
     val useRag: Boolean = false, // Enable RAG (Retrieval-Augmented Generation) context (default: false)
-    val isHelpCommand: Boolean = false // Is this a /help command for codebase questions (default: false)
+    val isHelpCommand: Boolean = false, // Is this a /help command for codebase questions (default: false)
+    val isSupportCommand: Boolean = false // Is this a /support command for support agent mode (default: false)
 )

@@ -27,3 +27,4 @@ settings.local.json
 mcp-server-deploy.tar.gz
 *.tar.gz
 *.pid
+keystore.jks

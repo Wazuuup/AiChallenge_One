@@ -35,7 +35,8 @@ fun Route.chatRouting() {
                     maxTokens = request.maxTokens,
                     enableTools = request.enableTools,
                     useRag = request.useRag,
-                    isHelpCommand = request.isHelpCommand
+                    isHelpCommand = request.isHelpCommand,
+                    isSupportCommand = request.isSupportCommand
                 )
                 call.respond(HttpStatusCode.OK, response)
             } catch (e: Exception) {

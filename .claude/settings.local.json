@@ -54,7 +54,8 @@
       "Bash(.gradlew.bat :mcp:rag:build)",
       "Bash(.\\\\gradlew.bat :mcp:git:build:*)",
       "Bash(.gradlew.bat :services:github-webhook:build:*)",
-      "Bash(../../gradlew.bat build:*)"
+      "Bash(../../gradlew.bat build:*)",
+      "Bash(.\\\\gradlew.bat :mcp:tickets:build:*)"
     ],
     "deny": [],
     "ask": []
