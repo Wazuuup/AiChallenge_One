@@ -55,7 +55,9 @@
       "Bash(.\\\\gradlew.bat :mcp:git:build:*)",
       "Bash(.gradlew.bat :services:github-webhook:build:*)",
       "Bash(../../gradlew.bat build:*)",
-      "Bash(.\\\\gradlew.bat :mcp:tickets:build:*)"
+      "Bash(.\\\\gradlew.bat :mcp:tickets:build:*)",
+      "WebFetch(domain:www.vdsina.com)",
+      "Bash(.\\\\gradlew.bat:*)"
     ],
     "deny": [],
     "ask": []

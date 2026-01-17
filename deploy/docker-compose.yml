@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: aichallenge-db
+    environment:
+      POSTGRES_DB: aichallenge
+      POSTGRES_USER: ${DATABASE_USER:-aichallenge}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-aichallenge}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - aichallenge-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DATABASE_USER:-aichallenge}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    image: amazoncorretto:17-alpine
+    container_name: aichallenge-server
+    working_dir: /app
+    command: [ "./bin/server" ]
+    volumes:
+      - ./server:/app:ro
+    environment:
+      PORT: 8080
+      DATABASE_URL: jdbc:postgresql://postgres:5432/aichallenge
+      DATABASE_USER: ${DATABASE_USER:-aichallenge}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-aichallenge}
+      GIGACHAT_CLIENT_ID: ${GIGACHAT_CLIENT_ID}
+      GIGACHAT_CLIENT_SECRET: ${GIGACHAT_CLIENT_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-openai/gpt-3.5-turbo}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - aichallenge-net
+
+  nginx:
+    image: nginx:alpine
+    container_name: aichallenge-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - server
+    networks:
+      - aichallenge-net
+
+volumes:
+  postgres_data:
+
+networks:
+  aichallenge-net:
+    driver: bridge

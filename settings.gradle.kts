@@ -34,19 +34,28 @@ include(":composeApp")
 include(":server")
 include(":shared")
 
-include(":mcp:notes")
-include(":mcp:client")
-include(":mcp:newsapi")
-include(":mcp:newscrud")
-include(":mcp:notes-polling")
-include(":mcp:rag")
-include(":mcp:git")
-include(":mcp:github-reviewer")
-include(":mcp:tickets")
+// =============================================================================
+// MCP Modules - Disabled for minimal VDS deployment (see SPEC-MCP-VDSINA.md)
+// =============================================================================
+// include(":mcp:notes")
+// include(":mcp:client")
+// include(":mcp:newsapi")
+// include(":mcp:newscrud")
+// include(":mcp:notes-polling")
+// include(":mcp:rag")
+// include(":mcp:git")
+// include(":mcp:github-reviewer")
+// include(":mcp:tickets")
 
-include(":services:notes")
-include(":services:news-crud")
-include(":services:notes-scheduler")
-include(":services:vectorizer")
-include(":services:rag")
-include(":services:github-webhook")
+// VDSina MCP - Active for VDS management and deployment
+include(":mcp:vdsina")
+
+// =============================================================================
+// Services Modules - Disabled for minimal VDS deployment (see SPEC-MCP-VDSINA.md)
+// =============================================================================
+// include(":services:notes")
+// include(":services:news-crud")
+// include(":services:notes-scheduler")
+// include(":services:vectorizer")
+// include(":services:rag")
+// include(":services:github-webhook")
