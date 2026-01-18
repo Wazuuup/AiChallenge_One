@@ -112,7 +112,7 @@ class ToolExecutionService(
         temperature: Double = 0.7,
         maxTokens: Int? = null,
         model: String? = null,
-        maxIterations: Int = 5
+        maxIterations: Int = 30
     ): String {
         logger.info("Starting tool calling workflow with ${tools.size} available tools")
 

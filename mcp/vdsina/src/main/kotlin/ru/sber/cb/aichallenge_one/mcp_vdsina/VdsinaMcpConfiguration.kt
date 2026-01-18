@@ -451,6 +451,100 @@ fun Application.configureMcpVdsinaServer() {
                         }
                     }
                 }
+
+
+                // Tool 13: change_server_password
+                addTool(
+                    name = "change_server_password",
+                    description = "Change the root password for a VDS server. The new password is taken from the server configuration (sudoPass in application-dev.conf).",
+                    inputSchema = ToolSchema(
+                        buildJsonObject {
+                            put("type", "object")
+                            putJsonObject("properties") {
+                                putJsonObject("server_id") {
+                                    put("type", "integer")
+                                    put("description", "ID of the server")
+                                }
+                            }
+                            putJsonArray("required") {
+                                add("server_id")
+                            }
+                            put("additionalProperties", false)
+                        }
+                    )
+                ) { arguments: CallToolRequest ->
+                    runBlocking {
+                        try {
+                            val serverId = arguments.arguments
+                                ?.get("server_id")
+                                ?.jsonPrimitive
+                                ?.intOrNull
+                                ?: throw IllegalArgumentException("server_id is required")
+
+                            val result = vdsinaService.changeServerPassword(serverId)
+                            logger.info("change_server_password executed successfully for server $serverId")
+                            CallToolResult(
+                                content = listOf(TextContent(text = result)),
+                                isError = false
+                            )
+                        } catch (e: Exception) {
+                            logger.error("Error in change_server_password", e)
+                            CallToolResult(
+                                content = listOf(TextContent(text = "Error: ${e.message}")),
+                                isError = true
+                            )
+                        }
+                    }
+                }
+
+                // Tool 14: wait_for_server_active
+                addTool(
+                    name = "check_server_status_and_wait",
+                    description = """Check if VDS server is active and ready.
+                        |If server is active - returns success with IP address.
+                        |If server is not active - waits 30 seconds and returns message TO RETRY THIS TOOL RIGHT AFTER THIS ATTEMPT.
+                        |If server is deleted - returns abort message.
+                        |Use this tool after creating a server to wait for it to become ready.""".trimMargin(),
+                    inputSchema = ToolSchema(
+                        buildJsonObject {
+                            put("type", "object")
+                            putJsonObject("properties") {
+                                putJsonObject("server_id") {
+                                    put("type", "integer")
+                                    put("description", "ID of the server to check")
+                                }
+                            }
+                            putJsonArray("required") {
+                                add("server_id")
+                            }
+                            put("additionalProperties", false)
+                        }
+                    )
+                ) { arguments: CallToolRequest ->
+                    runBlocking {
+                        try {
+                            val serverId = arguments.arguments
+                                ?.get("server_id")
+                                ?.jsonPrimitive
+                                ?.intOrNull
+                                ?: throw IllegalArgumentException("server_id is required")
+
+                            val result = vdsinaService.waitForServerActive(serverId)
+                            logger.info("check_server_status_and_wait: server $serverId status=${result.serverStatus}, ready=${result.ready}")
+
+                            CallToolResult(
+                                content = listOf(TextContent(text = result.message)),
+                                isError = result.shouldAbort
+                            )
+                        } catch (e: Exception) {
+                            logger.error("Error in check_server_status_and_wait", e)
+                            CallToolResult(
+                                content = listOf(TextContent(text = "Error: ${e.message}")),
+                                isError = true
+                            )
+                        }
+                    }
+                }
             }
         }
     }

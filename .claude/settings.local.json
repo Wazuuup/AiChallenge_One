@@ -57,7 +57,11 @@
       "Bash(../../gradlew.bat build:*)",
       "Bash(.\\\\gradlew.bat :mcp:tickets:build:*)",
       "WebFetch(domain:www.vdsina.com)",
-      "Bash(.\\\\gradlew.bat:*)"
+      "Bash(.\\\\gradlew.bat:*)",
+      "Bash(C:)",
+      "Bash(.gradlew.bat :mcp:vdsina:build:*)",
+      "Bash(.gradlew.bat :mcp:vdsina:compileKotlin --quiet)",
+      "Bash(powershell.exe:*)"
     ],
     "deny": [],
     "ask": []

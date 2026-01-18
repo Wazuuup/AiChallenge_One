@@ -19,7 +19,7 @@ services:
       retries: 5
 
   server:
-    image: amazoncorretto:17-alpine
+    image: amazoncorretto:21-alpine
     container_name: aichallenge-server
     working_dir: /app
     command: [ "./bin/server" ]
@@ -34,9 +34,30 @@ services:
       GIGACHAT_CLIENT_SECRET: ${GIGACHAT_CLIENT_SECRET}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL:-openai/gpt-3.5-turbo}
+      MCP_VDSINA_URL: http://mcp-vdsina:8096
     depends_on:
       postgres:
         condition: service_healthy
+      mcp-vdsina:
+        condition: service_started
+    networks:
+      - aichallenge-net
+
+  mcp-vdsina:
+    image: amazoncorretto:21-alpine
+    container_name: aichallenge-mcp-vdsina
+    working_dir: /app
+    command: [ "./bin/vdsina" ]
+    volumes:
+      - ./mcp-vdsina:/app:ro
+    environment:
+      PORT: 8096
+      VDSINA_API_TOKEN: ${VDSINA_API_TOKEN}
+      VDSINA_SSH_KEY_ID: ${VDSINA_SSH_KEY_ID}
+      VDSINA_SUDO_PASS: ${VDSINA_SUDO_PASS}
+      VDSINA_DATACENTER_ID: ${VDSINA_DATACENTER_ID:-4}
+      VDSINA_PLAN_ID: ${VDSINA_PLAN_ID:-36}
+      VDSINA_TEMPLATE_ID: ${VDSINA_TEMPLATE_ID:-23}
     networks:
       - aichallenge-net
 

@@ -15,9 +15,7 @@ import ru.sber.cb.aichallenge_one.database.MessageRepository
 import ru.sber.cb.aichallenge_one.domain.SummarizationConfig
 import ru.sber.cb.aichallenge_one.service.*
 import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
-import ru.sber.cb.aichallenge_one.service.mcp.impl.GitMcpClientService
-import ru.sber.cb.aichallenge_one.service.mcp.impl.RAGMcpClientService
-import ru.sber.cb.aichallenge_one.service.mcp.impl.TicketsMcpClientService
+import ru.sber.cb.aichallenge_one.service.mcp.impl.VdSinaMcpClientService
 import java.security.KeyStore
 import java.security.SecureRandom
 import javax.net.ssl.SSLContext
@@ -167,15 +165,8 @@ fun appModule(
     // MCP Client Service - Connects to local mcp-server for tool calling
 
     single {
-        RAGMcpClientService()
-    } bind IMcpClientService::class
-
-    single {
-        GitMcpClientService()
-    } bind IMcpClientService::class
-
-    single {
-        TicketsMcpClientService()
+        val mcpVdsinaUrl = System.getenv("MCP_VDSINA_URL") ?: "http://localhost:8096"
+        VdSinaMcpClientService(mcpServerUrl = mcpVdsinaUrl)
     } bind IMcpClientService::class
 
     // Tool Adapter Service - Converts MCP tools to OpenRouter format

@@ -18,8 +18,8 @@ import java.io.FileOutputStream
 import java.security.KeyStore
 
 fun main() {
-    // Load configuration from application.conf
-    val config = ConfigFactory.load()
+    // Load configuration with application-dev.conf fallback
+    val config = loadConfig()
 
     // Read SSL port from config
     val sslPort = try {
@@ -108,9 +108,46 @@ private fun generateSelfSignedCertificate(
     }
 }
 
+/**
+ * Loads configuration with application-dev.conf fallback.
+ * Priority: application-dev.conf > application.conf > environment variables
+ */
+private fun loadConfig(): com.typesafe.config.Config {
+    val devConfigFile = File("mcp/vdsina/src/main/resources/application-dev.conf")
+    return if (devConfigFile.exists()) {
+        println("Loading configuration from application-dev.conf")
+        ConfigFactory.load("application-dev")
+    } else {
+        println("Loading configuration from application.conf (application-dev.conf not found)")
+        ConfigFactory.load()
+    }
+}
+
+/**
+ * Safe config string getter with fallback to environment variable
+ */
+private fun com.typesafe.config.Config.getStringOrEnv(path: String, envVar: String): String? {
+    return try {
+        if (hasPath(path)) getString(path).takeIf { it.isNotBlank() } else null
+    } catch (e: Exception) {
+        null
+    } ?: System.getenv(envVar)
+}
+
+/**
+ * Safe config int getter with fallback to environment variable
+ */
+private fun com.typesafe.config.Config.getIntOrEnv(path: String, envVar: String): Int? {
+    return try {
+        if (hasPath(path)) getInt(path) else null
+    } catch (e: Exception) {
+        null
+    } ?: System.getenv(envVar)?.toIntOrNull()
+}
+
 fun Application.module() {
-    // Load configuration
-    val config = ConfigFactory.load()
+    // Load configuration with dev fallback
+    val config = loadConfig()
 
     // Install Koin DI
     install(Koin) {
@@ -138,12 +175,30 @@ fun Application.module() {
  */
 fun vdsinaModule(config: com.typesafe.config.Config) = module {
     single {
+        val apiToken = config.getStringOrEnv("vdsina.apiToken", "VDSINA_API_TOKEN")
+            ?: throw IllegalStateException("VDSINA_API_TOKEN not configured (set in application-dev.conf or environment variable)")
+        val sshKeyId = config.getIntOrEnv("vdsina.sshKeyId", "VDSINA_SSH_KEY_ID")
+        val datacenterId = config.getInt("vdsina.datacenterId")
+        val planId = config.getInt("vdsina.planId")
+        val templateId = config.getInt("vdsina.templateId")
+        val sudoPass = config.getStringOrEnv("vdsina.sudoPass", "VDSINA_SUDO_PASS")
+            ?: throw IllegalStateException("VDSINA_SUDO_PASS not configured (set in application-dev.conf or environment variable)")
+        val sshKeyPath = config.getStringOrEnv("deploy.sshKeyPath", "SSH_KEY_PATH")
+
+        println("VDSina API token: ${apiToken.take(8)}...${apiToken.takeLast(4)} (length: ${apiToken.length})")
+        println("VDSina config: sshKeyId=$sshKeyId, datacenterId=$datacenterId, planId=$planId, templateId=$templateId")
+        println("Deploy config: sshKeyPath=$sshKeyPath")
+
         VdsinaApiService(
             baseUrl = config.getString("vdsina.baseUrl"),
-            apiToken = System.getenv("VDSINA_API_TOKEN") ?: "",
-            sshKeyId = System.getenv("VDSINA_SSH_KEY_ID")?.toIntOrNull(),
-            minRamGb = config.getInt("vdsina.minRamGb"),
-            deployScriptPath = config.getString("deploy.scriptPath")
+            apiToken = apiToken,
+            sshKeyId = sshKeyId,
+            datacenterId = datacenterId,
+            planId = planId,
+            templateId = templateId,
+            newPassword = sudoPass,
+            deployScriptPath = config.getString("deploy.scriptPath"),
+            sshKeyPath = sshKeyPath
         )
     }
 }

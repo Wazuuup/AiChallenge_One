@@ -34,6 +34,7 @@ dependencies {
     implementation(libs.ktor.clientCore)
     implementation(libs.ktor.clientCio)
     implementation(libs.ktor.clientContentNegotiation)
+    implementation(libs.ktor.clientLogging)
 
     // Koin DI
     implementation(libs.koin.core)
@@ -50,4 +51,16 @@ dependencies {
 tasks.named<JavaExec>("run") {
     environment(System.getenv())
     environment("SSL_ENABLED", true)
+}
+
+tasks.register<JavaExec>("runDev") {
+    group = "application"
+    description = "Run the application with application-dev.conf configuration"
+
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("ru.sber.cb.aichallenge_one.mcp_vdsina.ApplicationKt")
+
+    systemProperty("config.resource", "application-dev.conf")
+
+    environment(System.getenv())
 }

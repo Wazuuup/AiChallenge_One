@@ -8,6 +8,7 @@ import io.ktor.serialization.kotlinx.json.*
 import io.modelcontextprotocol.kotlin.sdk.client.Client
 import io.modelcontextprotocol.kotlin.sdk.client.ClientOptions
 import io.modelcontextprotocol.kotlin.sdk.client.SseClientTransport
+import io.modelcontextprotocol.kotlin.sdk.shared.RequestOptions
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.Tool
 import kotlinx.coroutines.sync.Mutex
@@ -16,6 +17,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * Service for connecting to local MCP server and managing tool operations
@@ -115,7 +117,11 @@ abstract class AbstractMcpClientService(
 
         try {
             logger.debug("Calling tool '$name' with arguments: $arguments")
-            val result = mcpClient!!.callTool(name, arguments)
+            val result = mcpClient!!.callTool(
+                name = name,
+                arguments = arguments,
+                options = RequestOptions(timeout = 10.minutes)
+            )
 
             if (result.isError == true) {
                 val errorMsg = result.content.joinToString("\n")

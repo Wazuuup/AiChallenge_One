@@ -140,7 +140,7 @@ class OpenRouterModelsService(
                 // Filter only free models (where all pricing fields are "0")
                 val allModels = modelsResponse.data
                 availableModels = allModels.filter { model ->
-                    model.pricing?.isFree() == true
+                    model.pricing?.isFree() == true || model.id == "openai/gpt-3.5-turbo"
                 }
                 lastFetchTime = currentTime
 

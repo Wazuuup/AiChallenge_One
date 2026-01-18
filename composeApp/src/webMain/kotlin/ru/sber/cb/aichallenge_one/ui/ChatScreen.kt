@@ -68,9 +68,9 @@ fun ChatScreen(
     }
 
     // Launch notification polling
-    LaunchedEffect(Unit) {
+    /*LaunchedEffect(Unit) {
         viewModel.pollNotifications()
-    }
+    }*/
 
     Scaffold(
         topBar = {
