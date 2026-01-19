@@ -48,6 +48,7 @@ dependencies {
 
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.kotlin.testJunit)
+    testImplementation("io.mockk:mockk:1.13.5")
     //implementation("io.ktor:ktor-server-routing:3.3.1")
 }
 

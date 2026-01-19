@@ -1,6 +1,6 @@
 # AiChallenge_One - Claude Code Guide
 
-Kotlin Multiplatform веб-приложение для взаимодействия с GigaChat и OpenRouter AI APIs.
+Kotlin Multiplatform веб-приложение для взаимодействия с GigaChat, OpenRouter и Ollama AI APIs.
 
 ## Технологический стек
 
@@ -10,6 +10,7 @@ Kotlin Multiplatform веб-приложение для взаимодейств
 - **Koin DI**: 4.1.0
 - **Kotlinx Serialization**: 1.8.0
 - **Платформы**: JVM (server), JS/WasmJS (frontend)
+- **AI Провайдеры**: GigaChat, OpenRouter, Ollama (local LLM)
 
 ## Структура модулей
 
@@ -54,10 +55,16 @@ mcp/ - Model Context Protocol серверы
 - `service/ChatService.kt` - бизнес-логика (Strategy pattern)
 - `service/ProviderHandler.kt` - универсальный обработчик AI провайдеров
 - `service/SummarizationService.kt` - автосуммаризация истории
-- `client/GigaChatApiClient.kt` + `OpenAIApiClient.kt` - API клиенты
-- `client/*Adapter.kt` - Adapter pattern для унификации
-- `domain/` - AiClient интерфейс, ConversationMessage, AiProvider
+- `client/GigaChatApiClient.kt` + `OpenAIApiClient.kt` + `OllamaApiClient.kt` - API клиенты
+- `client/*Adapter.kt` - Adapter pattern для унификации (включая OllamaClientAdapter)
+- `domain/` - AiClient интерфейс, ConversationMessage, AiProvider (включая OLLAMA)
 - `di/AppModule.kt` - Koin DI
+
+**AI Провайдеры**:
+
+- **GigaChat** - Сбер API (требует OAuth)
+- **OpenRouter** - Мульти-провайдер с поддержкой function calling
+- **Ollama** - Локальный LLM провайдер (privacy-first, offline)
 
 ### composeApp
 
@@ -541,23 +548,24 @@ set GIT_REPO_PATH=C:\path\to\your\repo
 
 ## Распределение портов
 
-| Модуль                     | HTTP Port | HTTPS Port | Описание                                     |
-|----------------------------|-----------|------------|----------------------------------------------|
-| `server`                   | 8080      | -          | AI Chat Server (GigaChat/OpenRouter)         |
-| `services:notes`           | 8084      | -          | REST API для заметок                         |
-| `services:news-crud`       | 8087      | -          | REST API для новостей                        |
-| `services:vectorizer`      | 8090      | -          | REST API для векторизации текстов (Ollama)   |
-| `services:rag`             | 8091      | -          | REST API для RAG поиска                      |
-| `services:github-webhook`  | 8094      | -          | Webhook endpoint для GitHub PR events        |
-| `services:notes-scheduler` | -         | -          | Scheduler для notes summary (без сервера)    |
-| `mcp:notes`                | 8082      | 8443       | MCP Server (заметки + валюты ЦБ РФ)          |
-| `mcp:newsapi`              | 8085      | 8444       | MCP Server (NewsAPI.org)                     |
-| `mcp:newscrud`             | 8086      | 8445       | MCP Server (News CRUD proxy)                 |
-| `mcp:notes-polling`        | 8088      | 8447       | MCP Server (Docker управление для scheduler) |
-| `mcp:rag`                  | 8092      | 8448       | MCP Server (RAG поиск)                       |
-| `mcp:git`                  | 8093      | 8449       | MCP Server (Git операции через JGit)         |
-| `mcp:github-reviewer`      | 8095      | 8451       | MCP Server (GitHub API tools)                |
-| `mcp:client`               | -         | -          | MCP Client (тестовый, не сервер)             |
+| Модуль                     | HTTP Port | HTTPS Port | Описание                                              |
+|----------------------------|-----------|------------|-------------------------------------------------------|
+| `server`                   | 8080      | -          | AI Chat Server (GigaChat/OpenRouter/Ollama)           |
+| `services:notes`           | 8084      | -          | REST API для заметок                                  |
+| `services:news-crud`       | 8087      | -          | REST API для новостей                                 |
+| `services:vectorizer`      | 8090      | -          | REST API для векторизации текстов (Ollama embeddings) |
+| `services:rag`             | 8091      | -          | REST API для RAG поиска                               |
+| `services:github-webhook`  | 8094      | -          | Webhook endpoint для GitHub PR events                 |
+| `services:notes-scheduler` | -         | -          | Scheduler для notes summary (без сервера)             |
+| `mcp:notes`                | 8082      | 8443       | MCP Server (заметки + валюты ЦБ РФ)                   |
+| `mcp:newsapi`              | 8085      | 8444       | MCP Server (NewsAPI.org)                              |
+| `mcp:newscrud`             | 8086      | 8445       | MCP Server (News CRUD proxy)                          |
+| `mcp:notes-polling`        | 8088      | 8447       | MCP Server (Docker управление для scheduler)          |
+| `mcp:rag`                  | 8092      | 8448       | MCP Server (RAG поиск)                                |
+| `mcp:git`                  | 8093      | 8449       | MCP Server (Git операции через JGit)                  |
+| `mcp:github-reviewer`      | 8095      | 8451       | MCP Server (GitHub API tools)                         |
+| `mcp:client`               | -         | -          | MCP Client (тестовый, не сервер)                      |
+| `ollama`                   | 11434     | -          | Ollama API Server (локальный LLM провайдер)           |
 
 ## Команды сборки (Windows)
 
@@ -727,12 +735,12 @@ Health check - возвращает "GigaChat Chat Server is running"
 
 - `AiClient<T>` - интерфейс для AI провайдеров
 - `ProviderHandler<T>` - универсальная обработка сообщений
-- `GigaChatClientAdapter`, `OpenRouterClientAdapter` - адаптеры
+- `GigaChatClientAdapter`, `OpenRouterClientAdapter`, `OllamaClientAdapter` - адаптеры
 
 **3. Domain-Driven Design**
 
 - `ConversationMessage` - базовый интерфейс сообщений
-- `AiProvider` enum (GIGACHAT, OPENROUTER)
+- `AiProvider` enum (GIGACHAT, OPENROUTER, OLLAMA)
 - `ConversationHistory<T>` - история с метаданными
 
 **4. Dependency Injection**
@@ -759,6 +767,12 @@ Health check - возвращает "GigaChat Chat Server is running"
 2. Adapter реализующий `AiClient<YourMessageType>`
 3. Добавить в `AiProvider` enum
 4. Добавить language-specific промпт в `SummarizationService`
+
+**Примеры**:
+
+- `GigaChatMessage` + `GigaChatClientAdapter` (RU prompts)
+- `OpenRouterMessage` + `OpenRouterClientAdapter` (EN prompts)
+- `OllamaMessage` + `OllamaClientAdapter` (EN prompts, default: summarization disabled)
 
 ## Конфигурация
 
@@ -825,7 +839,66 @@ openai {
 
 **Доступные модели**: https://openrouter.ai/models
 
-### SSL/TLS
+### Ollama Configuration
+
+**Environment Variables**:
+
+```bash
+# Ollama configuration (опционально для использования локальных моделей)
+set OLLAMA_BASE_URL=http://localhost:11434  # Default, можно не указывать
+set OLLAMA_MODEL=gemma3:1b                  # Default модель
+set OLLAMA_TIMEOUT=120000                   # 2 минуты (в миллисекундах)
+set OLLAMA_ENABLE_SUMMARIZATION=false       # Суммаризация истории (отключено по умолчанию)
+set OLLAMA_ENABLE_TOOLS=true                # MCP tools support (включено по умолчанию)
+```
+
+**application.conf**:
+
+```hocon
+ollama {
+    # Base URL for Ollama API
+    baseUrl = "http://localhost:11434"
+    baseUrl = ${?OLLAMA_BASE_URL}
+
+    # Default model to use
+    model = "gemma3:1b"
+    model = ${?OLLAMA_MODEL}
+
+    # Request timeout in milliseconds (higher than cloud providers)
+    timeout = 120000  # 2 minutes default
+    timeout = ${?OLLAMA_TIMEOUT}
+
+    # Enable summarization for chat history (default: false for local models)
+    enableSummarization = false
+    enableSummarization = ${?OLLAMA_ENABLE_SUMMARIZATION}
+
+    # Enable MCP tools/function calling (default: true)
+    enableTools = true
+    enableTools = ${?OLLAMA_ENABLE_TOOLS}
+
+    # Streaming buffer size in milliseconds
+    streamFlushInterval = 50  # Flush every 50ms
+    streamFlushInterval = ${?OLLAMA_STREAM_FLUSH_INTERVAL}
+}
+```
+
+**Преимущества Ollama**:
+
+- **Privacy**: Все данные обрабатываются локально, ничего не покидает ваше устройство
+- **Cost**: Бесплатно после установки и загрузки моделей
+- **Offline**: Работает без интернета
+- **Full MCP Tools Support**: Поддержка function calling и MCP инструментов
+
+**Аппаратные требования**:
+
+| Модель       | RAM (минимум) | RAM (рекомендуется) | Размер на диске | Скорость генерации          |
+|--------------|---------------|---------------------|-----------------|-----------------------------|
+| `gemma3:1b`  | 4 GB          | 8 GB                | ~1 GB           | Быстрая (15-30 tok/s)       |
+| `gemma3:4b`  | 8 GB          | 16 GB               | ~3 GB           | Средняя (8-15 tok/s)        |
+| `gemma3:12b` | 16 GB         | 32 GB               | ~8 GB           | Медленная (3-8 tok/s)       |
+| `gemma3:27b` | 32 GB         | 64 GB               | ~16 GB          | Очень медленная (1-3 tok/s) |
+
+**SSL/TLS**
 
 - `truststore.jks` (пароль: "changeit") в `server/src/main/resources/`
 - Требуется для GigaChat API SSL сертификатов
@@ -886,10 +959,12 @@ install(CORS) { anyHost() } // ⚠️ Dev only
 class ChatService(
     gigaChatApiClient: GigaChatApiClient,
     openAIApiClient: OpenAIApiClient?,
+    ollamaApiClient: OllamaApiClient?,
     summarizationService: SummarizationService
 ) {
     private val gigaChatHandler: ProviderHandler<GigaChatMessage>
     private val openRouterHandler: OpenRouterProviderHandler?
+    private val ollamaHandler: OllamaProviderHandler?
 
     suspend fun processUserMessage(
         userText: String,
@@ -899,6 +974,12 @@ class ChatService(
     ): ChatResponse
 }
 ```
+
+**Провайдеры**:
+
+- `AiProvider.GIGACHAT` - Сбер GigaChat (требует credentials)
+- `AiProvider.OPENROUTER` - OpenRouter (требует API key)
+- `AiProvider.OLLAMA` - Локальный Ollama (требует установленный Ollama)
 
 ### Summarization
 
@@ -1002,9 +1083,9 @@ CMD ["./bin/server"]
 │   └── src/main/
 │       ├── kotlin/.../
 │       │   ├── Application.kt
-│       │   ├── domain/ (ConversationMessage, AiClient)
-│       │   ├── client/ (GigaChatApiClient, OpenAIApiClient, Adapters)
-│       │   ├── service/ (ChatService, ProviderHandler, SummarizationService)
+│       │   ├── domain/ (ConversationMessage, AiClient, AiProvider)
+│       │   ├── client/ (GigaChatApiClient, OpenAIApiClient, OllamaApiClient, Adapters)
+│       │   ├── service/ (ChatService, ProviderHandler, SummarizationService, ToolExecutionService)
 │       │   ├── routing/ChatRouting.kt
 │       │   └── di/AppModule.kt
 │       └── resources/ (application.conf, truststore.jks, logback.xml)
@@ -1191,12 +1272,353 @@ CMD ["./bin/server"]
 - Запустите нужные MCP серверы перед использованием
 - Для тестирования используйте RAG: включите checkbox "Use RAG" и задайте вопрос по базе знаний
 
+### Ollama Integration
+
+### Overview
+
+**Ollama** - это локальный LLM провайдер, который позволяет запускать AI модели прямо на вашем компьютере с полной
+приватностью.
+
+**Ключевые преимущества**:
+
+- **Privacy-first**: вся обработка происходит локально, данные не покидают устройство
+- **No API costs**: бесплатно после первоначальной загрузки моделей
+- **Offline capability**: работает без интернет-соединения
+- **Full MCP tools support**: полная поддержка function calling и MCP инструментов
+
+**Default модель**: `gemma3:1b` (легкая, быстрая, подходит для большинства задач)
+
+### Установка и настройка
+
+#### Шаг 1: Установка Ollama
+
+**Windows**:
+
+1. Скачайте установщик с https://ollama.com/download
+2. Запустите установщик и следуйте инструкциям
+3. После установки Ollama автоматически запустится в фоновом режиме
+
+**macOS**:
+
+```bash
+brew install ollama
+```
+
+**Linux**:
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+#### Шаг 2: Загрузка модели
+
+```bash
+# Загрузка рекомендуемой модели (gemma3:1b - быстрая и легкая)
+ollama pull gemma3:1b
+
+# Проверка установленных моделей
+ollama list
+
+# Тестовый запуск в терминале
+ollama run gemma3:1b
+```
+
+**Другие доступные модели**:
+
+```bash
+# Для лучшего качества (требует больше RAM)
+ollama pull gemma3:4b
+ollama pull gemma3:12b
+
+# Альтернативные модели
+ollama pull llama3.2:3b      # Meta Llama 3.2
+ollama pull qwen2.5:3b       # Alibaba Qwen 2.5
+ollama pull phi3:mini        # Microsoft Phi-3
+```
+
+#### Шаг 3: Запуск Ollama сервера
+
+Ollama обычно запускается автоматически после установки. Для проверки:
+
+```bash
+# Проверка статуса
+ollama ps
+
+# Если сервер не запущен, запустите его:
+ollama serve
+```
+
+Ollama сервер по умолчанию работает на `http://localhost:11434`
+
+#### Шаг 4: Проверка подключения
+
+```bash
+# Проверка API
+curl http://localhost:11434/api/tags
+
+# Тестовый запрос к API
+curl http://localhost:11434/api/generate -d '{
+  "model": "gemma3:1b",
+  "prompt": "Hello, world!"
+}'
+```
+
+### Использование в приложении
+
+#### Выбор провайдера в UI
+
+1. Запустите приложение: `.\gradlew.bat :server:run`
+2. Откройте web UI: http://localhost:8080
+3. В выпадающем списке "AI Provider" выберите **"Ollama (Local)"**
+4. Начните общение
+
+#### Доступные модели
+
+Модель можно изменить в `server/src/main/resources/application.conf`:
+
+```hocon
+ollama {
+    model = "gemma3:1b"  # Измените на загруженную модель
+}
+```
+
+Или через environment variable:
+
+```bash
+set OLLAMA_MODEL=llama3.2:3b
+.\gradlew.bat :server:run
+```
+
+### Troubleshooting
+
+#### Connection Refused (Ollama not running)
+
+**Ошибка**:
+
+```
+Connection refused: connect
+```
+
+**Причина**: Ollama сервер не запущен
+
+**Решение**:
+
+```bash
+# Windows: Проверьте запущенные процессы, должен быть ollama.exe
+tasklist | findstr ollama
+
+# Если не запущен, запустите:
+ollama serve
+
+# Или перезапустите Ollama приложение
+```
+
+#### Model Not Found
+
+**Ошибка**:
+
+```
+Model 'gemma3:1b' not found
+```
+
+**Причина**: Модель не загружена
+
+**Решение**:
+
+```bash
+# Загрузите модель
+ollama pull gemma3:1b
+
+# Проверьте список моделей
+ollama list
+```
+
+#### Out of Memory
+
+**Ошибка**:
+
+```
+Ollama ran out of memory
+```
+
+**Причина**: Недостаточно RAM для выбранной модели
+
+**Решение**:
+
+1. Используйте меньшую модель:
+    - Вместо `gemma3:12b` используйте `gemma3:1b`
+    - Вместо `llama3.2` используйте `llama3.2:1b`
+
+2. Освободите RAM:
+    - Закройте другие приложения
+    - Перезагрузите компьютер
+
+3. Увеличьте доступную RAM (если возможно)
+
+#### Timeout Errors
+
+**Ошибка**:
+
+```
+Generation timed out after 2 minutes
+```
+
+**Причина**: Слишком долгая генерация ответа
+
+**Решение**:
+
+1. Увеличьте timeout в конфигурации:
+
+```hocon
+ollama {
+    timeout = 300000  # 5 минут
+}
+```
+
+2. Используйте более быструю модель
+3. Сократите историю сообщений (Clear History)
+
+#### Slow Generation Speed
+
+**Проблема**: Ответы генерируются очень медленно
+
+**Возможные причины**:
+
+1. Используется слишком большая модель
+2. Недостаточно RAM
+3. Нет аппаратного ускорения (GPU)
+
+**Решение**:
+
+1. Используйте меньшую модель (`gemma3:1b` вместо `gemma3:12b`)
+2. Проверьте использование RAM: `ollama ps`
+3. Для GPU ускорения установите Ollama с GPU поддержкой (требует NVIDIA/AMD GPU)
+
+### Performance Tips
+
+#### Выбор модели
+
+**Для быстрых ответов** (рекомендуется для начала):
+
+- `gemma3:1b` - 15-30 токенов/секунду
+- Минимум RAM: 4 GB, Рекомендуется: 8 GB
+
+**Для баланса скорости и качества**:
+
+- `gemma3:4b` - 8-15 токенов/секунду
+- Минимум RAM: 8 GB, Рекомендуется: 16 GB
+
+**Для максимального качества**:
+
+- `gemma3:12b` - 3-8 токенов/секунду
+- Минимум RAM: 16 GB, Рекомендуется: 32 GB
+
+#### Оптимизация производительности
+
+1. **Используйте summarization** для больших историй:
+
+```hocon
+ollama {
+    enableSummarization = true
+}
+```
+
+2. **Ограничьте историю** в UI настройках (Max Messages)
+
+3. **Используйте streaming** (включено по умолчанию) для немедленного отображения результатов
+
+4. **Закройте ненужные приложения** для освобождения RAM
+
+5. **Для GPU**: Установите CUDA-compatible версию Ollama для 5-10x ускорения
+
+### Advanced Configuration
+
+#### Remote Ollama Server
+
+Для запуска Ollama на мощной машине и подключения с другой:
+
+1. На сервере (с GPU):
+
+```bash
+# Разрешить внешние подключения
+OLLAMA_HOST=0.0.0.0:11434 ollama serve
+```
+
+2. В конфигурации клиента:
+
+```hocon
+ollama {
+    baseUrl = "http://gpu-server:11434"
+    model = "gemma3:27b"  # Большая модель на мощном сервере
+}
+```
+
+#### Multiple Models Setup
+
+Для быстрого переключения между моделями:
+
+1. Загрузите несколько моделей:
+
+```bash
+ollama pull gemma3:1b
+ollama pull llama3.2:3b
+ollama pull gemma3:12b
+```
+
+2. Создайте environment переменные для разных профилей:
+
+```bash
+# Профиль 1: Быстрый
+set OLLAMA_MODEL=gemma3:1b
+
+# Профиль 2: Качественный
+set OLLAMA_MODEL=gemma3:12b
+```
+
+3. Перезапустите сервер для применения
+
+#### Custom Model Parameters
+
+Измените параметры генерации в `application.conf`:
+
+```hocon
+ollama {
+    model = "gemma3:1b"
+
+    # Параметры генерации (будут добавлены в каждый запрос)
+    options {
+        temperature = 0.7      # Креативность (0.0 - 1.0)
+        top_k = 40             # Top-K sampling
+        top_p = 0.9            # Top-P (nucleus) sampling
+        num_predict = 2048     # Максимальных токенов в ответе
+    }
+}
+```
+
+### Сравнение с облачными провайдерами
+
+| Характеристика   | Ollama (Local)        | GigaChat    | OpenRouter        |
+|------------------|-----------------------|-------------|-------------------|
+| **Privacy**      | 100% (local)          | Средняя     | Зависит от модели |
+| **Cost**         | Free (после загрузки) | Бесплатно   | Paid/Free модели  |
+| **Speed**        | 5-30 tok/s            | 20-50 tok/s | 20-80 tok/s       |
+| **Quality**      | Хорошая (1b-4b)       | Высокая     | Высокая           |
+| **Offline**      | Да                    | Нет         | Нет               |
+| **Setup**        | Требует установки     | API ключ    | API ключ          |
+| **MCP Tools**    | Да                    | Нет         | Да                |
+| **Token Limits** | Нет                   | 4096+       | Зависит от модели |
+
 ## Ссылки
 
 - [Kotlin Multiplatform](https://kotlinlang.org/docs/multiplatform.html)
 - [Compose Multiplatform](https://www.jetbrains.com/lp/compose-multiplatform/)
 - [Ktor](https://ktor.io/)
 - [Koin](https://insert-koin.io/)
+- [GigaChat Documentation](https://developers.sber.ru/docs/ru/gigachat/)
 - [OpenRouter Documentation](https://openrouter.ai/docs)
 - [OpenRouter Models](https://openrouter.ai/models)
 - [OpenRouter Privacy Settings](https://openrouter.ai/settings/privacy)
+- [Ollama Official Site](https://ollama.com)
+- [Ollama GitHub Repository](https://github.com/ollama/ollama)
+- [Ollama Models Library](https://ollama.com/library)
+- [Gemma 3 Model Card](https://ollama.com/library/gemma3)

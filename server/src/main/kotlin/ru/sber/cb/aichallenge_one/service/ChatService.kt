@@ -69,31 +69,39 @@ private const val SUPPORT_SYSTEM_PROMPT = """Ты - специалист тех�
  * - Persistent storage for conversation history
  * - MCP tool calling support for OpenRouter (when configured)
  * - RAG (Retrieval-Augmented Generation) context enrichment
+ * - Ollama local LLM support with optional summarization and tools
  *
  * @param gigaChatApiClient GigaChat API client
  * @param openAIApiClient OpenRouter/OpenAI API client (optional)
+ * @param ollamaClientAdapter Ollama client adapter (optional)
  * @param summarizationService Universal summarization service
  * @param messageRepository Repository for persistent message storage
  * @param mcpClientServiceList MCP client for tool calling
  * @param toolAdapterService Tool format conversion service
- * @param toolExecutionService Tool execution workflow handler (optional, requires OpenRouter)
+ * @param toolExecutionService Tool execution workflow handler (optional, requires OpenRouter/Ollama)
  * @param ragClient RAG service client for context retrieval
+ * @param ollamaEnableSummarization Enable summarization for Ollama (default: false)
+ * @param ollamaEnableTools Enable MCP tools for Ollama (default: true)
  */
 class ChatService(
     gigaChatApiClient: GigaChatApiClient,
     openAIApiClient: OpenAIApiClient?,
+    ollamaClientAdapter: OllamaClientAdapter?,
     summarizationService: SummarizationService,
     messageRepository: MessageRepository,
     mcpClientServiceList: List<IMcpClientService>,
     toolAdapterService: ToolAdapterService,
     toolExecutionService: ToolExecutionService? = null,
-    private val ragClient: RagClient
+    private val ragClient: RagClient,
+    ollamaEnableSummarization: Boolean? = null,
+    ollamaEnableTools: Boolean? = null
 ) {
     private val logger = LoggerFactory.getLogger(ChatService::class.java)
 
     // Provider handlers
     private val gigaChatHandler: ProviderHandler<GigaChatMessage>
     private val openRouterHandler: OpenRouterProviderHandler?
+    private val ollamaHandler: OllamaProviderHandler?
 
     // OpenRouter-specific state
     private var cumulativePromptTokens = 0
@@ -122,6 +130,20 @@ class ChatService(
                 mcpClientServiceList = mcpClientServiceList,
                 toolAdapterService = toolAdapterService,
                 toolExecutionService = toolExecutionService
+            )
+        }
+
+        // Initialize Ollama handler if available with optional summarization and tool calling support
+        ollamaHandler = ollamaClientAdapter?.let { adapter ->
+            OllamaProviderHandler(
+                ollamaClientAdapter = adapter,
+                summarizationService = summarizationService,
+                messageRepository = messageRepository,
+                enableSummarization = ollamaEnableSummarization ?: false,
+                mcpClientServiceList = mcpClientServiceList,
+                toolAdapterService = toolAdapterService,
+                toolExecutionService = toolExecutionService,
+                enableTools = ollamaEnableTools ?: true
             )
         }
     }
@@ -217,6 +239,13 @@ Answer the user's question below using the context from the knowledge base."""
                     maxTokens = maxTokens,
                     enableTools = effectiveEnableTools
                 )
+                AiProvider.OLLAMA -> processOllamaMessage(
+                    userText = enrichedUserText,
+                    systemPrompt = effectiveSystemPrompt,
+                    temperature = temperature,
+                    model = model,
+                    enableTools = effectiveEnableTools
+                )
             }
         } catch (e: Exception) {
             logger.error("Error processing user message", e)
@@ -308,12 +337,61 @@ Answer the user's question below using the context from the knowledge base."""
     }
 
     /**
+     * Process message using Ollama with token tracking and optional tool calling.
+     */
+    private suspend fun processOllamaMessage(
+        userText: String,
+        systemPrompt: String,
+        temperature: Double,
+        model: String?,
+        enableTools: Boolean
+    ): ChatResponse {
+        // Validate Ollama is configured
+        if (ollamaHandler == null) {
+            logger.error("Ollama client not configured")
+            return ChatResponse(
+                "Ollama не настроен. Пожалуйста, установите Ollama и скачайте модель gemma3:1b.",
+                ResponseStatus.ERROR
+            )
+        }
+
+        // Route to appropriate processing method based on enableTools flag
+        val result = if (enableTools) {
+            logger.info("Processing Ollama message with tool calling enabled")
+            ollamaHandler.processMessageWithTools(userText, systemPrompt, temperature, model)
+        } else {
+            logger.info("Processing Ollama message without tool calling")
+            ollamaHandler.processMessageWithMetadata(userText, systemPrompt, temperature, model)
+        }
+
+        // Track last response tokens (Ollama may not always return usage data)
+        val lastResponseTokenUsage = result.usage?.let { usage ->
+            TokenUsage(
+                promptTokens = usage.promptTokens,
+                completionTokens = usage.completionTokens,
+                totalTokens = usage.totalTokens
+            )
+        }
+
+        logger.debug("Response time: ${result.responseTimeMs}ms, model: ${result.model}")
+
+        return ChatResponse(
+            text = result.text,
+            status = ResponseStatus.SUCCESS,
+            tokenUsage = lastResponseTokenUsage, // Ollama doesn't accumulate tokens like OpenRouter
+            lastResponseTokenUsage = lastResponseTokenUsage,
+            responseTimeMs = result.responseTimeMs
+        )
+    }
+
+    /**
      * Clear all conversation histories and reset state from both memory and database.
      */
     suspend fun clearHistory() {
         logger.info("Clearing all message histories")
         gigaChatHandler.clearHistory()
         openRouterHandler?.clearHistory()
+        ollamaHandler?.clearHistory()
         resetTokenUsage()
         currentModel = null
     }
@@ -325,6 +403,7 @@ Answer the user's question below using the context from the knowledge base."""
         logger.info("Loading conversation histories from database")
         gigaChatHandler.loadHistory()
         openRouterHandler?.loadHistory()
+        ollamaHandler?.loadHistory()
     }
 
     /**

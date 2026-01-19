@@ -14,13 +14,15 @@ interface ConversationMessage {
  */
 enum class AiProvider(val displayName: String) {
     GIGACHAT("GigaChat"),
-    OPENROUTER("OpenRouter");
+    OPENROUTER("OpenRouter"),
+    OLLAMA("Ollama (Local)");
 
     companion object {
         fun fromString(value: String): AiProvider {
             return when (value.lowercase()) {
                 "gigachat" -> GIGACHAT
                 "openrouter" -> OPENROUTER
+                "ollama" -> OLLAMA
                 else -> GIGACHAT // default
             }
         }

@@ -61,7 +61,15 @@
       "Bash(C:)",
       "Bash(.gradlew.bat :mcp:vdsina:build:*)",
       "Bash(.gradlew.bat :mcp:vdsina:compileKotlin --quiet)",
-      "Bash(powershell.exe:*)"
+      "Bash(powershell.exe:*)",
+      "Bash(Select-String:*)",
+      "Bash(Select-Object -First 20)",
+      "Bash(.gradlew.bat:*)",
+      "Bash(more:*)",
+      "Bash(Select-Object:*)",
+      "Bash(curl:*)",
+      "Bash(./gradlew:*)",
+      "Bash(cd:*)"
     ],
     "deny": [],
     "ask": []

@@ -152,9 +152,9 @@ fun ChatScreen(
                 )
             }
 
-            // Token usage sidebar (only for OpenRouter)
+            // Token usage sidebar (for OpenRouter and Ollama)
             AnimatedVisibility(
-                visible = provider == "openrouter",
+                visible = provider == "openrouter" || provider == "ollama",
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
             ) {
@@ -494,7 +494,12 @@ fun SystemPromptInput(
                 onExpandedChange = { providerExpanded = !providerExpanded && !isLoading }
             ) {
                 OutlinedTextField(
-                    value = if (provider == "gigachat") "GigaChat" else "OpenRouter",
+                    value = when (provider) {
+                        "gigachat" -> "GigaChat"
+                        "openrouter" -> "OpenRouter"
+                        "ollama" -> "Ollama (Local)"
+                        else -> provider
+                    },
                     onValueChange = {},
                     readOnly = true,
                     enabled = !isLoading,
@@ -519,6 +524,13 @@ fun SystemPromptInput(
                             providerExpanded = false
                         }
                     )
+                    DropdownMenuItem(
+                        text = { Text("Ollama (Local)") },
+                        onClick = {
+                            onProviderChanged("ollama")
+                            providerExpanded = false
+                        }
+                    )
                 }
             }
 
@@ -540,8 +552,8 @@ fun SystemPromptInput(
                 )
             }
 
-            // Model Selector (OpenRouter only)
-            AnimatedVisibility(visible = provider == "openrouter") {
+            // Model Selector (OpenRouter and Ollama)
+            AnimatedVisibility(visible = provider == "openrouter" || provider == "ollama") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "Model",

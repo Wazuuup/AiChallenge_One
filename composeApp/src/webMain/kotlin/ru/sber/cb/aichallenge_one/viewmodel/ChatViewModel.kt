@@ -90,9 +90,10 @@ class ChatViewModel : ViewModel() {
         _provider.value = provider
         if (provider == "gigachat") {
             _selectedModel.value = null
-        } else if (provider == "openrouter" && _availableModels.value.isNotEmpty() && _selectedModel.value == null) {
-            // Set first model as default when switching to OpenRouter
-            _selectedModel.value = _availableModels.value.firstOrNull()?.id
+            _availableModels.value = emptyList()
+        } else if (provider == "openrouter" || provider == "ollama") {
+            // Fetch models for OpenRouter or Ollama
+            fetchModels()
         }
         // Load history for the new provider
         loadHistory()
@@ -124,10 +125,17 @@ class ChatViewModel : ViewModel() {
         _isLoadingModels.value = true
         viewModelScope.launch {
             try {
-                val models = chatApi.fetchAvailableModels()
+                val provider = _provider.value
+                val models = if (provider == "ollama") {
+                    chatApi.fetchAvailableModels("ollama")
+                } else if (provider == "openrouter") {
+                    chatApi.fetchAvailableModels("openrouter")
+                } else {
+                    emptyList()
+                }
                 _availableModels.value = models
-                // Set default model if OpenRouter is selected and no model is chosen
-                if (_provider.value == "openrouter" && _selectedModel.value == null && models.isNotEmpty()) {
+                // Set default model if OpenRouter or Ollama is selected and no model is chosen
+                if ((provider == "openrouter" || provider == "ollama") && _selectedModel.value == null && models.isNotEmpty()) {
                     _selectedModel.value = models.first().id
                 }
             } catch (e: Exception) {

@@ -6,16 +6,11 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
-import org.koin.dsl.bind
 import org.koin.dsl.module
-import ru.sber.cb.aichallenge_one.client.GigaChatApiClient
-import ru.sber.cb.aichallenge_one.client.OpenAIApiClient
-import ru.sber.cb.aichallenge_one.client.RagClient
+import ru.sber.cb.aichallenge_one.client.*
 import ru.sber.cb.aichallenge_one.database.MessageRepository
 import ru.sber.cb.aichallenge_one.domain.SummarizationConfig
 import ru.sber.cb.aichallenge_one.service.*
-import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
-import ru.sber.cb.aichallenge_one.service.mcp.impl.VdSinaMcpClientService
 import java.security.KeyStore
 import java.security.SecureRandom
 import javax.net.ssl.SSLContext
@@ -32,7 +27,13 @@ fun appModule(
     openAIApiKey: String? = null,
     openAIModel: String? = null,
     openAIMaxTokens: Int? = null,
-    openAITopP: Double? = null
+    openAITopP: Double? = null,
+    ollamaBaseUrl: String = "http://localhost:11434",
+    ollamaModel: String = "gemma3:1b",
+    ollamaTimeout: Long = 120000L,
+    ollamaEnableSummarization: Boolean = false,
+    ollamaEnableTools: Boolean = true,
+    ollamaStreamFlushInterval: Int = 50
 ) = module {
     // HttpClient for GigaChat with custom truststore
     single(qualifier = org.koin.core.qualifier.named("gigachat")) {
@@ -97,6 +98,30 @@ fun appModule(
         }
     }
 
+    // HttpClient for Ollama with default system certificates
+    single(qualifier = org.koin.core.qualifier.named("ollama")) {
+        HttpClient(CIO) {
+            install(ContentNegotiation) {
+                json(Json {
+                    ignoreUnknownKeys = true
+                    prettyPrint = true
+                    isLenient = true
+                    encodeDefaults = true
+                })
+            }
+            install(Logging) {
+                logger = Logger.DEFAULT
+                level = LogLevel.BODY
+            }
+            engine {
+                endpoint {
+                    connectTimeout = 30000
+                    requestTimeout = ollamaTimeout
+                }
+            }
+        }
+    }
+
     single {
         GigaChatApiClient(
             httpClient = get(org.koin.core.qualifier.named("gigachat")),
@@ -122,6 +147,23 @@ fun appModule(
         } else {
             null
         }
+    }
+
+    // Ollama API client
+    single {
+        OllamaApiClient(
+            httpClient = get(org.koin.core.qualifier.named("ollama")),
+            baseUrl = ollamaBaseUrl,
+            model = ollamaModel,
+            timeout = ollamaTimeout
+        )
+    }
+
+    // Ollama Client Adapter
+    single {
+        OllamaClientAdapter(
+            ollamaApiClient = get()
+        )
     }
 
     // OpenRouter Models Service (optional)
@@ -164,10 +206,11 @@ fun appModule(
 
     // MCP Client Service - Connects to local mcp-server for tool calling
 
-    single {
-        val mcpVdsinaUrl = System.getenv("MCP_VDSINA_URL") ?: "http://localhost:8096"
-        VdSinaMcpClientService(mcpServerUrl = mcpVdsinaUrl)
-    } bind IMcpClientService::class
+    /* single {
+         val mcpVdsinaUrl = System.getenv("MCP_VDSINA_URL") ?: "http://localhost:8096"
+         VdSinaMcpClientService(mcpServerUrl = mcpVdsinaUrl)
+     } bind IMcpClientService::class
+ */
 
     // Tool Adapter Service - Converts MCP tools to OpenRouter format
     single { ToolAdapterService() }
@@ -204,12 +247,15 @@ fun appModule(
         ChatService(
             gigaChatApiClient = get(),
             openAIApiClient = getOrNull(),
+            ollamaClientAdapter = getOrNull(),
             summarizationService = get(),
             messageRepository = get(),
             mcpClientServiceList = getAll(),
             toolAdapterService = get(),
             toolExecutionService = getOrNull(),
-            ragClient = get()
+            ragClient = get(),
+            ollamaEnableSummarization = ollamaEnableSummarization,
+            ollamaEnableTools = ollamaEnableTools
         )
     }
 }

@@ -97,13 +97,66 @@ fun Application.module() {
         log.info("OpenAI Model: ${openAIModel ?: "gpt-3.5-turbo"}")
     }
 
+    // Load Ollama configuration
+    val ollamaBaseUrl = if (config.hasPath("ollama.baseUrl")) {
+        config.getString("ollama.baseUrl")
+    } else {
+        "http://localhost:11434"
+    }
+
+    val ollamaModel = if (config.hasPath("ollama.model")) {
+        config.getString("ollama.model")
+    } else {
+        "gemma3:1b"
+    }
+
+    val ollamaTimeout = if (config.hasPath("ollama.timeout")) {
+        config.getLong("ollama.timeout")
+    } else {
+        120000L
+    }
+
+    val ollamaEnableSummarization = if (config.hasPath("ollama.enableSummarization")) {
+        config.getBoolean("ollama.enableSummarization")
+    } else {
+        false
+    }
+
+    val ollamaEnableTools = if (config.hasPath("ollama.enableTools")) {
+        config.getBoolean("ollama.enableTools")
+    } else {
+        true
+    }
+
+    val ollamaStreamFlushInterval = if (config.hasPath("ollama.streamFlushInterval")) {
+        config.getInt("ollama.streamFlushInterval")
+    } else {
+        50
+    }
+
+    log.info("Ollama configuration loaded successfully")
+    log.info("Ollama Base URL: $ollamaBaseUrl")
+    log.info("Ollama Model: $ollamaModel")
+    log.info("Ollama Enable Summarization: $ollamaEnableSummarization")
+    log.info("Ollama Enable Tools: $ollamaEnableTools")
+
     install(Koin) {
         // slf4jLogger()
         printLogger(Level.DEBUG)
         modules(
             appModule(
                 gigaChatBaseUrl, gigaChatAuthUrl, clientId, clientSecret, scope,
-                openAIBaseUrl, openAIApiKey, openAIModel, openAIMaxTokens, openAITopP
+                openAIBaseUrl,
+                openAIApiKey,
+                openAIModel,
+                openAIMaxTokens,
+                openAITopP,
+                ollamaBaseUrl,
+                ollamaModel,
+                ollamaTimeout,
+                ollamaEnableSummarization,
+                ollamaEnableTools,
+                ollamaStreamFlushInterval
             )
         )
     }
