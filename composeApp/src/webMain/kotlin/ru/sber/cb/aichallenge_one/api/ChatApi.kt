@@ -90,10 +90,15 @@ data class OpenRouterModel(
     val name: String? = null
 )
 
+/**
+ * Response for models list endpoint.
+ * Used by both OpenRouter and Ollama providers.
+ */
 @Serializable
 data class ModelsListResponse(
     val models: List<OpenRouterModel>,
-    val count: Int
+    val count: Int,
+    val error: String? = null  // Optional error message (used by Ollama)
 )
 
 /**

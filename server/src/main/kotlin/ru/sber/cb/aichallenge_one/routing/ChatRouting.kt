@@ -4,6 +4,7 @@ import io.ktor.http.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.koin.ktor.ext.inject
 import org.slf4j.LoggerFactory
@@ -14,6 +15,25 @@ import ru.sber.cb.aichallenge_one.models.ChatResponse
 import ru.sber.cb.aichallenge_one.models.SendMessageRequest
 import ru.sber.cb.aichallenge_one.models.SenderType
 import ru.sber.cb.aichallenge_one.service.ChatService
+
+/**
+ * Response DTO for Ollama models list endpoint.
+ */
+@Serializable
+data class OllamaModelsListResponse(
+    val models: List<OllamaModelDto>,
+    val count: Int,
+    val error: String? = null
+)
+
+/**
+ * Simple DTO for an Ollama model in the list.
+ */
+@Serializable
+data class OllamaModelDto(
+    val id: String,
+    val name: String
+)
 
 fun Route.chatRouting() {
     val chatService by inject<ChatService>()
@@ -55,7 +75,7 @@ fun Route.chatRouting() {
          * This endpoint provides real-time streaming of Ollama's response as it's being generated.
          * The SSE format sends chunks of data with the following structure:
          * - data: {"response": "partial text", "done": false}
-         * - data: {"response": "", "done": true, "context": [...]}
+         * - data: {"response": "", "done": true}
          *
          * Usage:
          * POST /api/send-message-ollama-stream
@@ -74,8 +94,31 @@ fun Route.chatRouting() {
 
                 logger.info("Received Ollama streaming request: ${request.text.take(100)}...")
 
-                // Get OllamaApiClient before responding
+                // Get OllamaApiClient and dependencies
                 val ollamaApiClient by inject<OllamaApiClient>()
+                val messageRepo by inject<MessageRepository>()
+
+                // Build conversation history from repository
+                val historyEntities = messageRepo.getHistory("ollama")
+                val messages = mutableListOf<ru.sber.cb.aichallenge_one.domain.OllamaMessage>()
+
+                // Add history
+                for (entity in historyEntities.takeLast(20)) { // Limit to last 20 messages
+                    messages.add(
+                        ru.sber.cb.aichallenge_one.domain.OllamaMessage(
+                            role = entity.role,
+                            content = entity.content
+                        )
+                    )
+                }
+
+                // Add current user message
+                messages.add(
+                    ru.sber.cb.aichallenge_one.domain.OllamaMessage(
+                        role = "user",
+                        content = request.text
+                    )
+                )
 
                 // Use respondTextWriter to send SSE stream
                 call.respondTextWriter(contentType = ContentType.Text.EventStream) {
@@ -84,7 +127,7 @@ fun Route.chatRouting() {
 
                         // Stream the response using OllamaApiClient
                         ollamaApiClient.streamGenerate(
-                            prompt = request.text,
+                            messages = messages,
                             output = this,
                             temperature = request.temperature,
                             maxTokens = request.maxTokens
@@ -152,7 +195,7 @@ fun Route.chatRouting() {
          * Returns a list of installed Ollama models that can be used for chat.
          *
          * Usage: GET /api/ollama-models
-         * Response: {"models": [{"id": "gemma3:1b", "name": "gemma3:1b"}, ...]}
+         * Response: {"models": [{"id": "gemma3:1b", "name": "gemma3:1b"}, ...], "count": 2}
          */
         get("/ollama-models") {
             try {
@@ -160,26 +203,27 @@ fun Route.chatRouting() {
                 val models = ollamaApiClient.fetchLocalModels()
 
                 val modelList = models.map { model ->
-                    mapOf(
-                        "id" to model.name,
-                        "name" to model.name
+                    OllamaModelDto(
+                        id = model.name,
+                        name = model.name
                     )
                 }
 
                 call.respond(
-                    HttpStatusCode.OK, mapOf(
-                        "models" to modelList,
-                        "count" to modelList.size
+                    HttpStatusCode.OK,
+                    OllamaModelsListResponse(
+                        models = modelList,
+                        count = modelList.size
                     )
                 )
             } catch (e: Exception) {
                 logger.error("Error fetching Ollama models", e)
                 call.respond(
                     HttpStatusCode.ServiceUnavailable,
-                    mapOf(
-                        "error" to "Failed to fetch Ollama models. Make sure Ollama is running locally.",
-                        "models" to emptyList<Any>(),
-                        "count" to 0
+                    OllamaModelsListResponse(
+                        models = emptyList(),
+                        count = 0,
+                        error = "Failed to fetch Ollama models. Make sure Ollama is running locally."
                     )
                 )
             }

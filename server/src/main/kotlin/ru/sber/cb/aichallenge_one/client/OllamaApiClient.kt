@@ -7,8 +7,12 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
-import ru.sber.cb.aichallenge_one.domain.ConversationMessage
+import ru.sber.cb.aichallenge_one.domain.OllamaMessage as DomainOllamaMessage
+
+// Type alias for backward compatibility within the file
+typealias OllamaMessage = DomainOllamaMessage
 
 /**
  * Enum representing message roles in Ollama API format.
@@ -18,21 +22,6 @@ enum class OllamaMessageRole(val value: String) {
     USER("user"),
     ASSISTANT("assistant")
 }
-
-/**
- * Message format for Ollama API requests.
- * Implements ConversationMessage for compatibility with the existing architecture.
- *
- * @property role Message role (system, user, or assistant)
- * @property content Message content text
- * @property timestamp Unix timestamp when message was created
- */
-@Serializable
-data class OllamaMessage(
-    override val role: String,
-    override val content: String,
-    val timestamp: Long = System.currentTimeMillis()
-) : ConversationMessage
 
 /**
  * Request body for Ollama /api/chat endpoint (OpenAI-compatible format).
@@ -67,33 +56,6 @@ data class OllamaOptions(
 )
 
 /**
- * Message in Ollama chat response.
- *
- * @property role Message role (assistant)
- * @property content Response text content
- */
-@Serializable
-data class OllamaResponseMessage(
-    val role: String,
-    val content: String
-)
-
-/**
- * Choice in Ollama chat response.
- *
- * @property index Choice index (always 0 for single response)
- * @property message Response message
- * @property finish_reason Reason for completion (stop, length, etc.)
- */
-@Serializable
-data class OllamaChoice(
-    val index: Int,
-    val message: OllamaResponseMessage,
-    @SerialName("finish_reason")
-    val finishReason: String? = null
-)
-
-/**
  * Usage statistics from Ollama chat response.
  * Note: Ollama may not always return usage data in OpenAI-compatible mode.
  *
@@ -114,47 +76,69 @@ data class OllamaUsage(
 /**
  * Complete response from Ollama /api/chat endpoint.
  *
- * @property id Response ID (may be null in Ollama)
- * @property object_type Object type (may be null in Ollama)
- * @property created Unix timestamp when response was created
+ * Ollama uses a different format than OpenAI. The response structure is:
+ * ```json
+ * {
+ *   "model": "gemma3:1b",
+ *   "created_at": "2024-07-12T12:34:56.789012345Z",
+ *   "message": {
+ *     "role": "assistant",
+ *     "content": "Response text"
+ *   },
+ *   "done": true,
+ *   "prompt_eval_count": 10,
+ *   "eval_count": 20
+ * }
+ * ```
+ *
  * @property model Model name used for generation
- * @property choices List of response choices (typically one)
- * @property usage Token usage statistics (may be null in Ollama)
+ * @property created_at ISO timestamp when response was created
+ * @property message The response message with role and content
+ * @property done Whether generation is complete
+ * @property prompt_eval_count Number of tokens in prompt
+ * @property eval_count Number of tokens in completion
  */
 @Serializable
 data class OllamaChatResponse(
-    val id: String? = null,
-    @SerialName("object")
-    val objectType: String? = null,
-    val created: Long? = null,
     val model: String,
-    val choices: List<OllamaChoice>,
-    val usage: OllamaUsage? = null
+    @SerialName("created_at")
+    val createdAt: String? = null,
+    val message: OllamaMessage,
+    val done: Boolean = true,
+    @SerialName("prompt_eval_count")
+    val promptEvalCount: Int? = null,
+    @SerialName("eval_count")
+    val evalCount: Int? = null
 )
 
 /**
- * Streaming chunk from Ollama /api/generate endpoint (native format).
+ * Streaming chunk from Ollama /api/chat endpoint with streaming enabled.
+ *
+ * Format:
+ * ```json
+ * {
+ *   "model": "gemma3:1b",
+ *   "created_at": "2024-07-12T12:34:56.789012345Z",
+ *   "message": {
+ *     "role": "assistant",
+ *     "content": "partial response text"
+ *   },
+ *   "done": false
+ * }
+ * ```
  *
  * @property model Model name used for generation
  * @property created_at ISO timestamp when chunk was generated
- * @property response Partial response text (null if done=true)
+ * @property message Response message with role and content
  * @property done Whether generation is complete
- * @property context Token context (only present when done=true)
- * @property eval_count Number of tokens evaluated (only present when done=true)
- * @property eval_duration Time spent evaluating in nanoseconds (only present when done=true)
  */
 @Serializable
 data class OllamaStreamChunk(
-    val model: String,
+    val model: String? = null,
     @SerialName("created_at")
-    val createdAt: String,
-    val response: String? = null,
-    val done: Boolean = false,
-    val context: List<Int>? = null,
-    @SerialName("eval_count")
-    val evalCount: Int? = null,
-    @SerialName("eval_duration")
-    val evalDuration: Long? = null
+    val createdAt: String? = null,
+    val message: OllamaMessage? = null,
+    val done: Boolean = false
 )
 
 /**
@@ -261,21 +245,32 @@ class OllamaApiClient(
             if (response.status.isSuccess()) {
                 val chatResponse: OllamaChatResponse = response.body()
 
-                val responseText = chatResponse.choices.firstOrNull()?.message?.content
+                val responseText = chatResponse.message.content
                     ?: "Empty response from Ollama"
 
                 logger.info("Received response from Ollama: ${responseText.take(100)}...")
                 logger.debug("Response time: ${responseTimeMs}ms")
 
-                chatResponse.usage?.let { usage ->
+                // Create usage info from Ollama response format
+                val usage = if (chatResponse.promptEvalCount != null && chatResponse.evalCount != null) {
+                    OllamaUsage(
+                        promptTokens = chatResponse.promptEvalCount,
+                        completionTokens = chatResponse.evalCount,
+                        totalTokens = chatResponse.promptEvalCount + chatResponse.evalCount
+                    )
+                } else {
+                    null
+                }
+
+                usage?.let {
                     logger.debug(
-                        "Token usage - Prompt: ${usage.promptTokens}, " +
-                                "Completion: ${usage.completionTokens}, " +
-                                "Total: ${usage.totalTokens}"
+                        "Token usage - Prompt: ${it.promptTokens}, " +
+                                "Completion: ${it.completionTokens}, " +
+                                "Total: ${it.totalTokens}"
                     )
                 }
 
-                return OllamaMessageResult(responseText, chatResponse.usage, responseTimeMs)
+                return OllamaMessageResult(responseText, usage, responseTimeMs)
             } else {
                 val errorBody = response.bodyAsText()
                 logger.error("Ollama API error: ${response.status} - $errorBody")
@@ -318,23 +313,31 @@ class OllamaApiClient(
      * Uses native Ollama /api/generate endpoint with streaming enabled.
      * Writes SSE-formatted chunks to the provided writer.
      *
-     * @param prompt The prompt text to generate from
+     * @param messages Conversation history as list of OllamaMessage
      * @param output Writer to output SSE chunks to
      * @param temperature Sampling temperature (0.0-2.0, default: 0.7)
      * @param maxTokens Maximum tokens to generate (optional, default: 2048)
      * @throws Exception if streaming fails or connection issues occur
      */
     suspend fun streamGenerate(
-        prompt: String,
+        messages: List<OllamaMessage>,
         output: java.io.Writer,
         temperature: Double = 0.7,
         maxTokens: Int? = null
     ) {
         try {
-            // Native Ollama generation request format
+            // Convert messages to Ollama format
+            val ollamaMessages = messages.map { msg ->
+                mapOf(
+                    "role" to msg.role,
+                    "content" to msg.content
+                )
+            }
+
+            // Ollama chat request with streaming enabled
             val streamRequest = mapOf(
                 "model" to model,
-                "prompt" to prompt,
+                "messages" to ollamaMessages,
                 "stream" to true,
                 "options" to mapOf(
                     "temperature" to temperature.coerceIn(0.0, 2.0),
@@ -343,11 +346,11 @@ class OllamaApiClient(
             )
 
             logger.info(
-                "Starting streaming generation: model=$model, " +
-                        "temperature=$temperature, maxTokens=$maxTokens"
+                "Starting streaming chat: model=$model, " +
+                        "messages=${ollamaMessages.size}, temperature=$temperature"
             )
 
-            val response: HttpResponse = httpClient.post("$baseUrl/api/generate") {
+            val response: HttpResponse = httpClient.post("$baseUrl/api/chat") {
                 headers {
                     append(HttpHeaders.ContentType, "application/json")
                 }
@@ -359,20 +362,38 @@ class OllamaApiClient(
                 val responseText = response.bodyAsText()
                 val lines = responseText.lines()
 
+                var fullResponse = ""
+
                 for (line in lines) {
                     if (line.startsWith("data: ")) {
                         try {
                             val json = line.removePrefix("data: ")
                             if (json.isNotBlank()) {
-                                // Forward SSE chunk to output
-                                output.write("data: $json\n\n")
+                                // Parse Ollama streaming chunk
+                                val chunk = Json.decodeFromString<OllamaStreamChunk>(json)
+
+                                // Extract response content from message
+                                val responseContent = chunk.message?.content ?: ""
+
+                                // Build SSE format for frontend
+                                val sseData = mapOf(
+                                    "response" to responseContent,
+                                    "done" to chunk.done
+                                )
+
+                                val sseJson = Json.encodeToString(sseData)
+                                output.write("data: $sseJson\n\n")
                                 output.flush()
 
-                                logger.debug("Forwarded stream chunk: ${json.take(100)}...")
+                                fullResponse += responseContent
+
+                                if (responseContent.isNotEmpty()) {
+                                    logger.debug("Stream chunk: ${responseContent.take(50)}...")
+                                }
 
                                 // Check if generation is complete
-                                if (json.contains("\"done\":true")) {
-                                    logger.info("Streaming generation completed")
+                                if (chunk.done) {
+                                    logger.info("Streaming completed. Total length: ${fullResponse.length}")
                                 }
                             }
                         } catch (e: Exception) {
