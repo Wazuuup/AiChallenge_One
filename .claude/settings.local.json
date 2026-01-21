@@ -69,7 +69,8 @@
       "Bash(Select-Object:*)",
       "Bash(curl:*)",
       "Bash(./gradlew:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []
