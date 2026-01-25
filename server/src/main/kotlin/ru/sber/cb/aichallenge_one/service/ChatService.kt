@@ -10,6 +10,38 @@ import ru.sber.cb.aichallenge_one.models.TokenUsage
 import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
 
 /**
+ * System prompt for data analyst mode (/analyse command)
+ */
+private const val ANALYTICS_SYSTEM_PROMPT = """Ты - опытный аналитик данных интернет-магазина сантехники.
+
+Твои обязанности:
+1. Анализировать данные о заказах, продажах и возвратах
+2. Выявлять паттерны и тенденции в поведении клиентов
+3. Определять причины возвратов товаров
+4. Формулировать рекомендации на основе данных
+5. Отвечать на вопросы о метриках бизнеса
+
+Доступные данные:
+- История заказов (ID, дата, товары, сумма, статус)
+- Информация о возвратах (причина, дата, категория товара)
+- Данные о клиентах (при необходимости)
+
+При анализе:
+- Используй только предоставленные данные из RAG
+- Опирайся на факты, не делай предположений
+- Если данных недостаточно для ответа, укажи это явно
+- Приводи конкретные цифры и проценты
+- Давай практические рекомендации
+
+Порядок работы:
+1. Проанализируй контекст из базы знаний (данные уже добавлены в сообщение)
+2. Найди релевантную информацию для ответа на вопрос
+3. Сформулируй чёткий и структурированный ответ
+4. Приведи конкретные цифры и рекомендации
+
+Отвечай ТОЛЬКО на русском языке, чётко и по делу. Не используй эмодзи."""
+
+/**
  * System prompt for support agent mode (/support command)
  */
 private const val SUPPORT_SYSTEM_PROMPT = """Ты - специалист технической поддержки приложения AiChallenge_One.
@@ -162,6 +194,7 @@ class ChatService(
      * @param useRag Enable RAG context retrieval (default: false)
      * @param isHelpCommand Is this a /help command for codebase questions (default: false)
      * @param isSupportCommand Is this a /support command for support agent mode (default: false)
+     * @param isAnalyseCommand Is this a /analyse command for data analyst mode (default: false)
      * @return ChatResponse with AI reply and metadata
      */
     suspend fun processUserMessage(
@@ -174,17 +207,20 @@ class ChatService(
         enableTools: Boolean = true,
         useRag: Boolean = false,
         isHelpCommand: Boolean = false,
-        isSupportCommand: Boolean = false
+        isSupportCommand: Boolean = false,
+        isAnalyseCommand: Boolean = false
     ): ChatResponse {
         return try {
             val aiProvider = AiProvider.fromString(provider)
 
             // Handle /help command: force enable RAG and add codebase-specific system prompt
             // Handle /support command: force enable RAG and tools, add support-specific system prompt
-            val effectiveUseRag = useRag || isHelpCommand || isSupportCommand
+            // Handle /analyse command: force enable RAG, add data analyst system prompt
+            val effectiveUseRag = useRag || isHelpCommand || isSupportCommand || isAnalyseCommand
             val effectiveEnableTools = enableTools || isSupportCommand
             val effectiveSystemPrompt = when {
                 isSupportCommand -> SUPPORT_SYSTEM_PROMPT
+                isAnalyseCommand -> ANALYTICS_SYSTEM_PROMPT
                 isHelpCommand -> """You are an expert software development assistant specializing in codebase analysis.
 Your task is to answer questions about the codebase using the provided context from the knowledge base.
 
@@ -201,7 +237,7 @@ Answer the user's question below using the context from the knowledge base."""
                 else -> systemPrompt
             }
 
-            logger.info("Processing message [provider=${aiProvider.displayName}, temperature=$temperature, model=$model, enableTools=$effectiveEnableTools, useRag=$effectiveUseRag, isHelpCommand=$isHelpCommand, isSupportCommand=$isSupportCommand]")
+            logger.info("Processing message [provider=${aiProvider.displayName}, temperature=$temperature, model=$model, enableTools=$effectiveEnableTools, useRag=$effectiveUseRag, isHelpCommand=$isHelpCommand, isSupportCommand=$isSupportCommand, isAnalyseCommand=$isAnalyseCommand]")
 
             // RAG Context Augmentation - Add context to USER prompt, not system prompt
             val enrichedUserText = if (effectiveUseRag) {

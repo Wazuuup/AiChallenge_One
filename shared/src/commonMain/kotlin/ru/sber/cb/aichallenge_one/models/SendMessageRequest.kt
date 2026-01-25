@@ -13,5 +13,6 @@ data class SendMessageRequest(
     val enableTools: Boolean = true, // Enable MCP tool calling for OpenRouter (default: true)
     val useRag: Boolean = false, // Enable RAG (Retrieval-Augmented Generation) context (default: false)
     val isHelpCommand: Boolean = false, // Is this a /help command for codebase questions (default: false)
-    val isSupportCommand: Boolean = false // Is this a /support command for support agent mode (default: false)
+    val isSupportCommand: Boolean = false, // Is this a /support command for support agent mode (default: false)
+    val isAnalyseCommand: Boolean = false // Is this a /analyse command for data analyst mode (default: false)
 )

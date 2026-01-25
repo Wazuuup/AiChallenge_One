@@ -140,6 +140,8 @@ class ChatApi {
      * @param maxTokens Optional maximum tokens for completion
      * @param useRag Enable RAG (Retrieval-Augmented Generation) context
      * @param isHelpCommand Whether this is a /help command for codebase questions
+     * @param isSupportCommand Whether this is a /support command for support agent mode
+     * @param isAnalyseCommand Whether this is a /analyse command for data analyst mode
      * @return ChatResponse containing the AI response
      * @throws Exception if the request fails
      */
@@ -153,7 +155,8 @@ class ChatApi {
         enableTools: Boolean = true,
         useRag: Boolean = false,
         isHelpCommand: Boolean = false,
-        isSupportCommand: Boolean = false
+        isSupportCommand: Boolean = false,
+        isAnalyseCommand: Boolean = false
     ): ChatResponse {
         return try {
             val response = client.post("$serverUrl/api/send-message") {
@@ -169,7 +172,8 @@ class ChatApi {
                         enableTools = enableTools,
                         useRag = useRag,
                         isHelpCommand = isHelpCommand,
-                        isSupportCommand = isSupportCommand
+                        isSupportCommand = isSupportCommand,
+                        isAnalyseCommand = isAnalyseCommand
                     )
                 )
             }
@@ -314,6 +318,7 @@ class ChatApi {
         params.add("useRag=$request.useRag")
         params.add("isHelpCommand=$request.isHelpCommand")
         params.add("isSupportCommand=$request.isSupportCommand")
+        params.add("isAnalyseCommand=$request.isAnalyseCommand")
 
         val streamUrl = "$serverUrl/api/stream-ollama-message?${params.joinToString("&")}"
 

@@ -166,11 +166,19 @@ class ChatViewModel : ViewModel() {
 
         // Parse /help command: syntax is "/help <question>"
         val isHelpCommand = text.startsWith("/help ")
-        val actualText = if (isHelpCommand) {
+        val actualTextFromHelp = if (isHelpCommand) {
             // Extract the question after "/help "
             text.substring(6).trim()
         } else {
             text
+        }
+
+        // Parse /analyse command: syntax is "/analyse <question>"
+        val isAnalyseCommand = text.startsWith("/analyse ")
+        val actualText = when {
+            isHelpCommand -> actualTextFromHelp
+            isAnalyseCommand -> text.substring(9).trim()  // "/analyse " = 9 chars
+            else -> text
         }
 
         // Show original message in chat (including /help prefix if present)
@@ -189,7 +197,9 @@ class ChatViewModel : ViewModel() {
                     model = _selectedModel.value,
                     maxTokens = _maxTokens.value,
                     useRag = _useRag.value,
-                    isHelpCommand = isHelpCommand
+                    isHelpCommand = isHelpCommand,
+                    isSupportCommand = false,
+                    isAnalyseCommand = isAnalyseCommand
                 )
 
                 val botMessage = if (response.status == ResponseStatus.SUCCESS) {

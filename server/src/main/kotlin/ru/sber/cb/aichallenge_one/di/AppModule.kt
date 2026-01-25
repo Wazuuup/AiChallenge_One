@@ -6,11 +6,14 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
+import org.koin.dsl.bind
 import org.koin.dsl.module
 import ru.sber.cb.aichallenge_one.client.*
 import ru.sber.cb.aichallenge_one.database.MessageRepository
 import ru.sber.cb.aichallenge_one.domain.SummarizationConfig
 import ru.sber.cb.aichallenge_one.service.*
+import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
+import ru.sber.cb.aichallenge_one.service.mcp.impl.RAGMcpClientService
 import java.security.KeyStore
 import java.security.SecureRandom
 import javax.net.ssl.SSLContext
@@ -211,6 +214,10 @@ fun appModule(
          VdSinaMcpClientService(mcpServerUrl = mcpVdsinaUrl)
      } bind IMcpClientService::class
  */
+
+    single {
+        RAGMcpClientService()
+    } bind IMcpClientService::class
 
     // Tool Adapter Service - Converts MCP tools to OpenRouter format
     single { ToolAdapterService() }
