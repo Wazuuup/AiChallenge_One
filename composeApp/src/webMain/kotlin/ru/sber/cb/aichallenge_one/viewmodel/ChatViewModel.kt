@@ -175,9 +175,18 @@ class ChatViewModel : ViewModel() {
 
         // Parse /analyse command: syntax is "/analyse <question>"
         val isAnalyseCommand = text.startsWith("/analyse ")
+        val actualTextFromAnalyse = if (isAnalyseCommand) {
+            text.substring(9).trim()
+        } else {
+            text
+        }
+
+        // Parse /about command: syntax is "/about <question>"
+        val isAboutCommand = text.startsWith("/about ")
         val actualText = when {
             isHelpCommand -> actualTextFromHelp
-            isAnalyseCommand -> text.substring(9).trim()  // "/analyse " = 9 chars
+            isAnalyseCommand -> actualTextFromAnalyse
+            isAboutCommand -> text.substring(7).trim()  // "/about " = 7 chars
             else -> text
         }
 
@@ -199,7 +208,8 @@ class ChatViewModel : ViewModel() {
                     useRag = _useRag.value,
                     isHelpCommand = isHelpCommand,
                     isSupportCommand = false,
-                    isAnalyseCommand = isAnalyseCommand
+                    isAnalyseCommand = isAnalyseCommand,
+                    isAboutCommand = isAboutCommand
                 )
 
                 val botMessage = if (response.status == ResponseStatus.SUCCESS) {

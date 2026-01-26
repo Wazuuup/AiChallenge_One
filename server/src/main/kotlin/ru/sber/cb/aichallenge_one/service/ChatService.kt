@@ -42,6 +42,17 @@ private const val ANALYTICS_SYSTEM_PROMPT = """Ты - опытный анали�
 Отвечай ТОЛЬКО на русском языке, чётко и по делу. Не используй эмодзи."""
 
 /**
+ * System prompt for user profile mode (/about command)
+ */
+private const val ABOUT_SYSTEM_PROMPT =
+    """Ты - персональный ассистент, который знает всё о пользователе этого приложения.
+Твоя задача - предоставлять информацию о пользователе на основе предоставлённого резюме.
+
+Отвечай на вопросы о пользователе, используя информацию из его резюме.
+Если информации в резюме недостаточно для ответа, честно скажи об этом.
+Отвечай вежливо, на русском языке, без эмодзи."""
+
+/**
  * System prompt for support agent mode (/support command)
  */
 private const val SUPPORT_SYSTEM_PROMPT = """Ты - специалист технической поддержки приложения AiChallenge_One.
@@ -88,6 +99,19 @@ private const val SUPPORT_SYSTEM_PROMPT = """Ты - специалист тех�
 - 5: критический (система не работает)
 
 Отвечай чётко и по делу. Не используй эмодзи."""
+
+/**
+ * Load about_me.md content from resources.
+ */
+private fun loadAboutMeContent(): String {
+    return try {
+        val resource = Thread.currentThread().contextClassLoader.getResourceAsStream("about_me.md")
+            ?: throw IllegalArgumentException("about_me.md not found in resources")
+        resource.bufferedReader().use { it.readText() }
+    } catch (e: Exception) {
+        "Информация о пользователе недоступна."
+    }
+}
 
 /**
  * Refactored ChatService using Strategy pattern with ProviderHandlers.
@@ -195,6 +219,7 @@ class ChatService(
      * @param isHelpCommand Is this a /help command for codebase questions (default: false)
      * @param isSupportCommand Is this a /support command for support agent mode (default: false)
      * @param isAnalyseCommand Is this a /analyse command for data analyst mode (default: false)
+     * @param isAboutCommand Is this a /about command for user profile information (default: false)
      * @return ChatResponse with AI reply and metadata
      */
     suspend fun processUserMessage(
@@ -208,7 +233,8 @@ class ChatService(
         useRag: Boolean = false,
         isHelpCommand: Boolean = false,
         isSupportCommand: Boolean = false,
-        isAnalyseCommand: Boolean = false
+        isAnalyseCommand: Boolean = false,
+        isAboutCommand: Boolean = false
     ): ChatResponse {
         return try {
             val aiProvider = AiProvider.fromString(provider)
@@ -216,11 +242,20 @@ class ChatService(
             // Handle /help command: force enable RAG and add codebase-specific system prompt
             // Handle /support command: force enable RAG and tools, add support-specific system prompt
             // Handle /analyse command: force enable RAG, add data analyst system prompt
+            // Handle /about command: add about_me.md content to system prompt
             val effectiveUseRag = useRag || isHelpCommand || isSupportCommand || isAnalyseCommand
             val effectiveEnableTools = enableTools || isSupportCommand
             val effectiveSystemPrompt = when {
                 isSupportCommand -> SUPPORT_SYSTEM_PROMPT
                 isAnalyseCommand -> ANALYTICS_SYSTEM_PROMPT
+                isAboutCommand -> {
+                    val aboutContent = loadAboutMeContent()
+                    """$ABOUT_SYSTEM_PROMPT
+
+=== Резюме пользователя ===
+$aboutContent
+=== Конец резюме ==="""
+                }
                 isHelpCommand -> """You are an expert software development assistant specializing in codebase analysis.
 Your task is to answer questions about the codebase using the provided context from the knowledge base.
 
@@ -237,7 +272,7 @@ Answer the user's question below using the context from the knowledge base."""
                 else -> systemPrompt
             }
 
-            logger.info("Processing message [provider=${aiProvider.displayName}, temperature=$temperature, model=$model, enableTools=$effectiveEnableTools, useRag=$effectiveUseRag, isHelpCommand=$isHelpCommand, isSupportCommand=$isSupportCommand, isAnalyseCommand=$isAnalyseCommand]")
+            logger.info("Processing message [provider=${aiProvider.displayName}, temperature=$temperature, model=$model, enableTools=$effectiveEnableTools, useRag=$effectiveUseRag, isHelpCommand=$isHelpCommand, isSupportCommand=$isSupportCommand, isAnalyseCommand=$isAnalyseCommand, isAboutCommand=$isAboutCommand]")
 
             // RAG Context Augmentation - Add context to USER prompt, not system prompt
             val enrichedUserText = if (effectiveUseRag) {

@@ -142,6 +142,7 @@ class ChatApi {
      * @param isHelpCommand Whether this is a /help command for codebase questions
      * @param isSupportCommand Whether this is a /support command for support agent mode
      * @param isAnalyseCommand Whether this is a /analyse command for data analyst mode
+     * @param isAboutCommand Whether this is a /about command for user profile information
      * @return ChatResponse containing the AI response
      * @throws Exception if the request fails
      */
@@ -156,7 +157,8 @@ class ChatApi {
         useRag: Boolean = false,
         isHelpCommand: Boolean = false,
         isSupportCommand: Boolean = false,
-        isAnalyseCommand: Boolean = false
+        isAnalyseCommand: Boolean = false,
+        isAboutCommand: Boolean = false
     ): ChatResponse {
         return try {
             val response = client.post("$serverUrl/api/send-message") {
@@ -173,7 +175,8 @@ class ChatApi {
                         useRag = useRag,
                         isHelpCommand = isHelpCommand,
                         isSupportCommand = isSupportCommand,
-                        isAnalyseCommand = isAnalyseCommand
+                        isAnalyseCommand = isAnalyseCommand,
+                        isAboutCommand = isAboutCommand
                     )
                 )
             }
@@ -319,6 +322,7 @@ class ChatApi {
         params.add("isHelpCommand=$request.isHelpCommand")
         params.add("isSupportCommand=$request.isSupportCommand")
         params.add("isAnalyseCommand=$request.isAnalyseCommand")
+        params.add("isAboutCommand=$request.isAboutCommand")
 
         val streamUrl = "$serverUrl/api/stream-ollama-message?${params.joinToString("&")}"
 

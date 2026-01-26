@@ -14,5 +14,6 @@ data class SendMessageRequest(
     val useRag: Boolean = false, // Enable RAG (Retrieval-Augmented Generation) context (default: false)
     val isHelpCommand: Boolean = false, // Is this a /help command for codebase questions (default: false)
     val isSupportCommand: Boolean = false, // Is this a /support command for support agent mode (default: false)
-    val isAnalyseCommand: Boolean = false // Is this a /analyse command for data analyst mode (default: false)
+    val isAnalyseCommand: Boolean = false, // Is this a /analyse command for data analyst mode (default: false)
+    val isAboutCommand: Boolean = false // Is this a /about command for user profile information (default: false)
 )
