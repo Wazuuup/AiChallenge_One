@@ -6,12 +6,10 @@ import kotlin.coroutines.resume
 import kotlin.js.json
 
 /**
- * Actual implementation of AudioRecorderFactory for JS platform.
+ * Actual factory function for JS platform.
  */
-actual object AudioRecorderFactory {
-    actual fun create(callbacks: AudioRecorderCallbacks): AudioRecorder {
-        return AudioRecorderWeb(callbacks)
-    }
+internal actual fun createAudioRecorder(callbacks: AudioRecorderCallbacks): AudioRecorder {
+    return AudioRecorderWeb(callbacks)
 }
 
 /**
@@ -38,9 +36,9 @@ class AudioRecorderWeb(
             window.navigator.asDynamic().mediaDevices
                 .getUserMedia(constraints)
                 .then(
-                    onFulfilled = { stream ->
-                        stream.asDynamic().getTracks().asDynamic()
-                            .forEach { track -> track.asDynamic().stop() }
+                    onFulfilled = { stream: dynamic ->
+                        stream.getTracks()
+                            .forEach { track: dynamic -> track.stop() }
                         cont.resume(true)
                     },
                     onRejected = { cont.resume(false) }
@@ -67,7 +65,7 @@ class AudioRecorderWeb(
             window.navigator.asDynamic().mediaDevices
                 .getUserMedia(constraints)
                 .then(
-                    onFulfilled = { stream ->
+                    onFulfilled = { stream: dynamic ->
                         mediaStream = stream
                         startTime = kotlin.js.Date.now()
 
@@ -77,28 +75,28 @@ class AudioRecorderWeb(
                             "audio/webm"
                         }
 
-                        json("mimeType" to mimeType)
+                        val options = json("mimeType" to mimeType)
                         mediaRecorder = js("new MediaRecorder(stream, options)")
 
                         val chunks = mutableListOf<dynamic>()
 
-                        mediaRecorder!!.ondataavailable = { event: dynamic ->
-                            val data = event.asDynamic().data
-                            if (data != null && data.asDynamic().size > 0) {
+                        mediaRecorder.ondataavailable = { event: dynamic ->
+                            val data = event.data
+                            if (data != null && data.size > 0) {
                                 chunks.add(data)
                             }
                         }
 
-                        mediaRecorder!!.onstop = {
+                        mediaRecorder.onstop = {
                             val duration = (kotlin.js.Date.now() - startTime).toLong()
 
-                            json("type" to mimeType)
-                            chunks.toTypedArray()
+                            val blobOptions = json("type" to mimeType)
+                            val chunksArray = chunks.toTypedArray()
                             val blob = js("new Blob(chunksArray, blobOptions)")
 
                             val reader = js("new FileReader()")
                             reader.onload = { evt: dynamic ->
-                                val result = evt.asDynamic().target.result as String
+                                val result = evt.target.result as String
                                 val base64 = result.substringAfter(",")
                                 stopCallback?.invoke(base64, "webm", duration)
                             }
@@ -107,17 +105,17 @@ class AudioRecorderWeb(
                             }
                             reader.readAsDataURL(blob)
 
-                            stream.asDynamic().getTracks().asDynamic()
-                                .forEach { track: dynamic -> track.asDynamic().stop() }
+                            mediaStream.getTracks()
+                                .forEach { track: dynamic -> track.stop() }
                         }
 
-                        mediaRecorder!!.onerror = { event: dynamic ->
+                        mediaRecorder.onerror = { event: dynamic ->
                             cleanup()
-                            val error = event.asDynamic().message as? String ?: "Unknown error"
+                            val error = event.message as? String ?: "Unknown error"
                             errorCallback?.invoke("Recording error: $error")
                         }
 
-                        mediaRecorder!!.start(100)
+                        mediaRecorder.start(100)
                         callbacks.onRecordingStarted()
                     },
                     onRejected = { error: Any ->
@@ -135,8 +133,8 @@ class AudioRecorderWeb(
 
     override fun stopRecording() {
         try {
-            if (mediaRecorder != null && mediaRecorder!!.asDynamic().state == "recording") {
-                mediaRecorder!!.stop()
+            if (mediaRecorder != null && mediaRecorder.state == "recording") {
+                mediaRecorder.stop()
             }
         } catch (e: Exception) {
             cleanup()
@@ -149,7 +147,7 @@ class AudioRecorderWeb(
     }
 
     override fun getCurrentDuration(): Long {
-        return if (mediaRecorder != null && mediaRecorder!!.asDynamic().state == "recording") {
+        return if (mediaRecorder != null && mediaRecorder.state == "recording") {
             (kotlin.js.Date.now() - startTime).toLong()
         } else {
             0L
@@ -159,15 +157,15 @@ class AudioRecorderWeb(
     private fun cleanup() {
         try {
             if (mediaRecorder != null) {
-                mediaRecorder!!.asDynamic().ondataavailable = null
-                mediaRecorder!!.asDynamic().onstop = null
-                mediaRecorder!!.asDynamic().onerror = null
+                mediaRecorder.ondataavailable = null
+                mediaRecorder.onstop = null
+                mediaRecorder.onerror = null
             }
             if (mediaStream != null) {
-                mediaStream!!.asDynamic().getTracks().asDynamic()
-                    .forEach { track ->
+                mediaStream.getTracks()
+                    .forEach { track: dynamic ->
                         try {
-                            track.asDynamic().stop()
+                            track.stop()
                         } catch (e: Exception) {
                         }
                     }

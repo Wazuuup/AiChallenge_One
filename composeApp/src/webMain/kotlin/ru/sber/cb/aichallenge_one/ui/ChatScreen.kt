@@ -57,7 +57,7 @@ fun ChatScreen(
     val responseTimeMs by viewModel.responseTimeMs.collectAsState()
     val maxTokens by viewModel.maxTokens.collectAsState()
     val useRag by viewModel.useRag.collectAsState()
-    val isRecording by viewModel.isRecording
+    val isRecording by viewModel.isRecording.collectAsState()
 
     var showSettings by remember { mutableStateOf(false) }
 
@@ -685,9 +685,9 @@ fun MessageInput(
     // ✅ Подписываемся на state только внутри этого компонента
     val inputText by viewModel.inputText.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-    val isRecording by viewModel.isRecording
-    val recordingDuration by viewModel.recordingDuration
-    val showMicPermissionBanner by viewModel.showMicPermissionBanner
+    val isRecording by viewModel.isRecording.collectAsState()
+    val recordingDuration by viewModel.recordingDuration.collectAsState()
+    val showMicPermissionBanner by viewModel.showMicPermissionBanner.collectAsState()
 
     Surface(
         modifier = modifier,

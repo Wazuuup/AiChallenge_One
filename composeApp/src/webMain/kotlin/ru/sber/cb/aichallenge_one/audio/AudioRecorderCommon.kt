@@ -31,8 +31,15 @@ interface AudioRecorder {
 }
 
 /**
+ * Platform-specific factory provider - implemented separately for JS and Wasm.
+ */
+internal expect fun createAudioRecorder(callbacks: AudioRecorderCallbacks): AudioRecorder
+
+/**
  * Factory for creating AudioRecorder instances.
  */
-expect object AudioRecorderFactory {
-    fun create(callbacks: AudioRecorderCallbacks): AudioRecorder
+object AudioRecorderFactory {
+    fun create(callbacks: AudioRecorderCallbacks): AudioRecorder {
+        return createAudioRecorder(callbacks)
+    }
 }

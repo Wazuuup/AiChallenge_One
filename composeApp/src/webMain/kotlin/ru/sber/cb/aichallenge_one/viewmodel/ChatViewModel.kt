@@ -2,8 +2,6 @@ package ru.sber.cb.aichallenge_one.viewmodel
 
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -72,14 +70,14 @@ class ChatViewModel : ViewModel() {
     private val _lastShownNotificationId = MutableStateFlow<String?>(null)
 
     // Voice input state
-    private val _isRecording = mutableStateOf(false)
-    val isRecording: State<Boolean> = _isRecording
+    private val _isRecording = MutableStateFlow(false)
+    val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
 
-    private val _recordingDuration = mutableStateOf(0L)
-    val recordingDuration: State<Long> = _recordingDuration
+    private val _recordingDuration = MutableStateFlow(0L)
+    val recordingDuration: StateFlow<Long> = _recordingDuration.asStateFlow()
 
-    private val _showMicPermissionBanner = mutableStateOf(false)
-    val showMicPermissionBanner: State<Boolean> = _showMicPermissionBanner
+    private val _showMicPermissionBanner = MutableStateFlow(false)
+    val showMicPermissionBanner: StateFlow<Boolean> = _showMicPermissionBanner.asStateFlow()
 
     private var audioRecorder: AudioRecorder? = null
     private var recordingTimerJob: Job? = null

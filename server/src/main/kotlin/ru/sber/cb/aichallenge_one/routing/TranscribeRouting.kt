@@ -6,7 +6,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.koin.ktor.ext.inject
 import org.slf4j.LoggerFactory
-import ru.sber.cb.aichallenge_one.client.OpenRouterSTTClient
+import ru.sber.cb.aichallenge_one.client.WhisperSTTClient
 import ru.sber.cb.aichallenge_one.models.TranscribeRequest
 import ru.sber.cb.aichallenge_one.models.TranscribeResponse
 import java.util.*
@@ -15,11 +15,11 @@ import java.util.*
  * Configure transcription routes for voice input
  *
  * This routing provides:
- * - POST /api/transcribe - Transcribe audio to text
+ * - POST /api/transcribe - Transcribe audio to text using local Whisper
  * - GET /api/transcribe/health - Check STT service availability
  */
 fun Route.transcribeRoutes() {
-    val sttClient by inject<OpenRouterSTTClient>()
+    val sttClient by inject<WhisperSTTClient>()
     val logger = LoggerFactory.getLogger("TranscribeRouting")
 
     route("/api/transcribe") {
@@ -44,9 +44,10 @@ fun Route.transcribeRoutes() {
          */
         post {
             try {
-                // Check if STT client is configured
-                if (sttClient == null) {
-                    logger.warn("STT service not configured")
+                // Check if STT client is available
+                val isAvailable = sttClient.isAvailable()
+                if (!isAvailable) {
+                    logger.warn("STT service not available")
                     call.respond(
                         HttpStatusCode.ServiceUnavailable, TranscribeResponse(
                             text = "",
@@ -54,7 +55,7 @@ fun Route.transcribeRoutes() {
                             tokenUsage = null,
                             duration = 0.0,
                             cost = 0.0,
-                            error = "STT_SERVICE_NOT_CONFIGURED: OpenRouter API key not configured"
+                            error = "STT_SERVICE_NOT_CONFIGURED: Whisper not found in PATH. Install with: pip install openai-whisper"
                         )
                     )
                     return@post
@@ -134,17 +135,10 @@ fun Route.transcribeRoutes() {
                 logger.info("Audio validation passed: size=${audioBytes.size} bytes, ~${audioBytes.size / 1024}KB")
 
                 // Transcribe audio
-                val response = sttClient?.transcribe(
+                val response = sttClient.transcribe(
                     audioData = request.audioData,
                     format = request.format,
                     language = request.language
-                ) ?: TranscribeResponse(
-                    text = "",
-                    status = "ERROR",
-                    tokenUsage = null,
-                    duration = 0.0,
-                    cost = 0.0,
-                    error = "STT_CLIENT_NOT_INITIALIZED"
                 )
 
                 when (response.status) {
@@ -157,8 +151,11 @@ fun Route.transcribeRoutes() {
                         logger.error("Transcription failed: ${response.error}")
                         call.respond(
                             when {
-                                response.error?.contains("STT_API_ERROR") == true -> HttpStatusCode.ServiceUnavailable
+                                response.error?.contains("STT_SERVICE_NOT_CONFIGURED") == true -> HttpStatusCode.ServiceUnavailable
+                                response.error?.contains("FFMPEG_ERROR") == true -> HttpStatusCode.InternalServerError
+                                response.error?.contains("WHISPER_ERROR") == true -> HttpStatusCode.InternalServerError
                                 response.error?.contains("AUDIO_TOO_LARGE") == true -> HttpStatusCode.PayloadTooLarge
+                                response.error?.contains("AUDIO_TOO_SMALL") == true -> HttpStatusCode.BadRequest
                                 response.error?.contains("INVALID_BASE64") == true -> HttpStatusCode.BadRequest
                                 else -> HttpStatusCode.InternalServerError
                             },
@@ -207,17 +204,7 @@ fun Route.transcribeRoutes() {
          */
         get("/health") {
             try {
-                if (sttClient == null) {
-                    call.respond(
-                        HttpStatusCode.ServiceUnavailable, mapOf(
-                            "available" to false,
-                            "message" to "STT service not configured"
-                        )
-                    )
-                    return@get
-                }
-
-                val isAvailable = sttClient?.isAvailable() ?: false
+                val isAvailable = sttClient.isAvailable()
 
                 if (isAvailable) {
                     call.respond(

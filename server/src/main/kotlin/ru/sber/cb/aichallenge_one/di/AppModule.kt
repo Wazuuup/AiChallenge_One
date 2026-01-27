@@ -9,6 +9,8 @@ import kotlinx.serialization.json.Json
 import org.koin.dsl.bind
 import org.koin.dsl.module
 import ru.sber.cb.aichallenge_one.client.*
+import ru.sber.cb.aichallenge_one.config.FfmpegConfig
+import ru.sber.cb.aichallenge_one.config.WhisperConfig
 import ru.sber.cb.aichallenge_one.database.MessageRepository
 import ru.sber.cb.aichallenge_one.domain.SummarizationConfig
 import ru.sber.cb.aichallenge_one.service.*
@@ -182,18 +184,32 @@ fun appModule(
         }
     }
 
-    // OpenRouter STT Client for audio transcription (optional)
+    // Whisper STT Client (local) - Replaces OpenRouterSTTClient
     single {
-        if (openAIBaseUrl != null && openAIApiKey != null) {
-            OpenRouterSTTClient(
-                httpClient = get(org.koin.core.qualifier.named("openai")),
-                baseUrl = openAIBaseUrl,
-                apiKey = openAIApiKey,
-                model = "whisper-1"
+        WhisperSTTClient(
+            whisperConfig = WhisperConfig(
+                command = System.getenv("WHISPER_COMMAND") ?: "whisper",
+                model = System.getenv("WHISPER_MODEL") ?: "small",
+                language = System.getenv("WHISPER_LANGUAGE") ?: "Russian",
+                task = System.getenv("WHISPER_TASK") ?: "transcribe",
+                outputFormat = System.getenv("WHISPER_OUTPUT_FORMAT") ?: "txt",
+                device = System.getenv("WHISPER_DEVICE") ?: "auto",
+                timeout = System.getenv("WHISPER_TIMEOUT")?.toIntOrNull() ?: 120,
+                tempDir = System.getenv("WHISPER_TEMP_DIR") ?: "temp",
+                maxFileSize = System.getenv("WHISPER_MAX_FILE_SIZE")?.toLongOrNull() ?: (25 * 1024 * 1024),
+                maxDuration = System.getenv("WHISPER_MAX_DURATION")?.toIntOrNull() ?: 30,
+                encoding = System.getenv("WHISPER_ENCODING") ?: "UTF-8"
+            ),
+            ffmpegConfig = FfmpegConfig(
+                command = System.getenv("FFMPEG_COMMAND") ?: "ffmpeg",
+                inputFormat = System.getenv("FFMPEG_INPUT_FORMAT") ?: "webm",
+                outputFormat = System.getenv("FFMPEG_OUTPUT_FORMAT") ?: "wav",
+                sampleRate = System.getenv("FFMPEG_SAMPLE_RATE")?.toIntOrNull() ?: 16000,
+                channels = System.getenv("FFMPEG_CHANNELS")?.toIntOrNull() ?: 1,
+                bitDepth = System.getenv("FFMPEG_BIT_DEPTH")?.toIntOrNull() ?: 16,
+                timeout = System.getenv("FFMPEG_TIMEOUT")?.toIntOrNull() ?: 30
             )
-        } else {
-            null
-        }
+        )
     }
 
     // RAG Client - Calls RAG service for context retrieval

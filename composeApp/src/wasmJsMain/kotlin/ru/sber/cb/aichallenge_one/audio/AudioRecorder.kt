@@ -1,13 +1,10 @@
 package ru.sber.cb.aichallenge_one.audio
 
 /**
- * Actual implementation of AudioRecorderFactory for Wasm platform.
- * Voice input is not supported in Wasm environment.
+ * Actual factory function for Wasm platform.
  */
-actual object AudioRecorderFactory {
-    actual fun create(callbacks: AudioRecorderCallbacks): AudioRecorder {
-        return AudioRecorderWebStub(callbacks)
-    }
+internal actual fun createAudioRecorder(callbacks: AudioRecorderCallbacks): AudioRecorder {
+    return AudioRecorderWebStub(callbacks)
 }
 
 /**

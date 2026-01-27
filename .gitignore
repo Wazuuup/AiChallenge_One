@@ -29,3 +29,9 @@ mcp-server-deploy.tar.gz
 *.tar.gz
 *.pid
 keystore.jks
+
+# Whisper temp directory
+temp/
+*.webm
+*.wav
+*.txt
