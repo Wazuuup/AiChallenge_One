@@ -9,7 +9,11 @@ plugins {
 
 kotlin {
     js {
-        browser()
+        browser {
+            commonWebpackConfig {
+                devServer = devServer?.copy(port = 8081)
+            }
+        }
         binaries.executable()
     }
 

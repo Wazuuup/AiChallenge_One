@@ -229,10 +229,15 @@ class WhisperSTTClient(
 
         try {
             // Execute Whisper
-            val process = ProcessBuilder(command)
+            val processBuilder = ProcessBuilder(command)
                 .directory(File(whisperConfig.tempDir))
                 .redirectErrorStream(true) // Merge stderr with stdout
-                .start()
+
+            // Force Python to use UTF-8 encoding for stdout (critical on Windows)
+            processBuilder.environment()["PYTHONIOENCODING"] = "utf-8"
+            processBuilder.environment()["PYTHONUTF8"] = "1"
+
+            val process = processBuilder.start()
 
             // Read output
             val stdout =
@@ -339,26 +344,33 @@ class WhisperSTTClient(
     /**
      * Check if Whisper is available in PATH
      *
+     * OpenAI Whisper doesn't support --help or --version flags properly.
+     * When called without arguments, it returns exit code 2 with usage info.
+     * We check if the output contains "whisper" to verify installation.
+     *
      * @return true if Whisper is available, false otherwise
      */
     suspend fun isAvailable(): Boolean {
         return try {
-            val process = ProcessBuilder(whisperConfig.command, "--help")
+            // Call whisper without arguments - it will show usage and exit with code 2
+            val process = ProcessBuilder(whisperConfig.command)
                 .redirectErrorStream(true)
                 .start()
 
             val exitCode = process.waitFor(5, TimeUnit.SECONDS)
             val output = process.inputStream.bufferedReader().use { it.readText() }
 
+            // OpenAI Whisper returns exit code 2 with "usage: whisper" when called without args
+            // This is expected behavior and means whisper is installed correctly
             if (exitCode && output.contains("whisper", ignoreCase = true)) {
-                logger.info("Whisper health check passed")
+                logger.info("Whisper health check passed (found in PATH)")
                 true
             } else {
-                logger.warn("Whisper health check failed: exit code=${process.exitValue()}")
+                logger.warn("Whisper health check failed: output doesn't contain 'whisper'")
                 false
             }
         } catch (e: Exception) {
-            logger.error("Whisper health check error", e)
+            logger.error("Whisper health check error: ${e.message}")
             false
         }
     }
@@ -366,22 +378,26 @@ class WhisperSTTClient(
     /**
      * Get Whisper version
      *
+     * OpenAI Whisper doesn't have a --version flag.
+     * We use pip to get the installed version.
+     *
      * @return Version string or null if not available
      */
     suspend fun getVersion(): String? {
         return try {
-            val process = ProcessBuilder(whisperConfig.command, "--help")
+            val process = ProcessBuilder("pip", "show", "openai-whisper")
                 .redirectErrorStream(true)
                 .start()
 
             val output = process.inputStream.bufferedReader().use { it.readText() }
 
-            // Extract version from help output
+            // Extract version from pip show output: "Version: X.Y.Z"
             output.lines()
-                .find { it.contains("version", ignoreCase = true) }
+                .find { it.startsWith("Version:") }
+                ?.substringAfter("Version:")
                 ?.trim()
         } catch (e: Exception) {
-            logger.warn("Failed to get Whisper version", e)
+            logger.warn("Failed to get Whisper version: ${e.message}")
             null
         }
     }
