@@ -57,6 +57,7 @@ fun ChatScreen(
     val responseTimeMs by viewModel.responseTimeMs.collectAsState()
     val maxTokens by viewModel.maxTokens.collectAsState()
     val useRag by viewModel.useRag.collectAsState()
+    val isRecording by viewModel.isRecording
 
     var showSettings by remember { mutableStateOf(false) }
 
@@ -83,7 +84,7 @@ fun ChatScreen(
             )
         },
         floatingActionButton = {
-            if (hasInput) {
+            if (hasInput && !isRecording) {
                 ExtendedFloatingActionButton(
                     onClick = { viewModel.sendMessage() },
                     icon = { Icon(Icons.Filled.Send, "Send message") },
@@ -684,43 +685,110 @@ fun MessageInput(
     // ✅ Подписываемся на state только внутри этого компонента
     val inputText by viewModel.inputText.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val isRecording by viewModel.isRecording
+    val recordingDuration by viewModel.recordingDuration
+    val showMicPermissionBanner by viewModel.showMicPermissionBanner
 
     Surface(
         modifier = modifier,
         tonalElevation = 3.dp
     ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        Column(
+            modifier = Modifier.padding(16.dp)
         ) {
-            OutlinedTextField(
-                value = inputText,
-                onValueChange = viewModel::onInputChanged,  // ✅ Прямой вызов ViewModel метода
-                modifier = Modifier
-                    .weight(1f)
-                    .onPreviewKeyEvent { keyEvent ->
-                        if (keyEvent.key == Key.Enter && keyEvent.type == KeyEventType.KeyDown) {
-                            if (!keyEvent.isShiftPressed && inputText.isNotBlank() && !isLoading) {
-                                viewModel.sendMessage()
-                                true
-                            } else false
-                        } else false
-                    },
-                placeholder = { Text("Введите сообщение...") },
-                enabled = !isLoading,
-                maxLines = 4,
-                shape = RoundedCornerShape(24.dp)
-            )
-
-            if (isLoading) {
-                Box(
-                    modifier = Modifier.size(56.dp),
-                    contentAlignment = Alignment.Center
+            // Microphone permission banner
+            AnimatedVisibility(
+                visible = showMicPermissionBanner,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.Mic,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Text(
+                            "Microphone access required for voice input",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { viewModel.dismissMicPermissionBanner() }) {
+                            Text("Dismiss")
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = inputText,
+                    onValueChange = viewModel::onInputChanged,  // ✅ Прямой вызов ViewModel метода
+                    modifier = Modifier
+                        .weight(1f)
+                        .onPreviewKeyEvent { keyEvent ->
+                            if (keyEvent.key == Key.Enter && keyEvent.type == KeyEventType.KeyDown) {
+                                if (!keyEvent.isShiftPressed && inputText.isNotBlank() && !isLoading && !isRecording) {
+                                    viewModel.sendMessage()
+                                    true
+                                } else false
+                            } else false
+                        },
+                    placeholder = {
+                        Text(
+                            if (isRecording) "Recording..." else "Введите сообщение..."
+                        )
+                    },
+                    enabled = !isLoading && !isRecording,
+                    maxLines = 4,
+                    shape = RoundedCornerShape(24.dp)
+                )
+
+                // Voice input button
+                VoiceInputButton(
+                    isRecording = isRecording,
+                    recordingDuration = recordingDuration,
+                    onToggleRecording = { viewModel.toggleRecording() }
+                )
+
+                // Send button or loading indicator
+                if (isLoading) {
+                    Box(
+                        modifier = Modifier.size(56.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                    }
+                } else if (!isRecording) {
+                    IconButton(
+                        onClick = { viewModel.sendMessage() },
+                        enabled = inputText.isNotBlank(),
+                        modifier = Modifier.size(56.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Send,
+                            contentDescription = "Send message",
+                            tint = if (inputText.isNotBlank())
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                        )
+                    }
                 }
             }
         }

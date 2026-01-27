@@ -182,6 +182,20 @@ fun appModule(
         }
     }
 
+    // OpenRouter STT Client for audio transcription (optional)
+    single {
+        if (openAIBaseUrl != null && openAIApiKey != null) {
+            OpenRouterSTTClient(
+                httpClient = get(org.koin.core.qualifier.named("openai")),
+                baseUrl = openAIBaseUrl,
+                apiKey = openAIApiKey,
+                model = "whisper-1"
+            )
+        } else {
+            null
+        }
+    }
+
     // RAG Client - Calls RAG service for context retrieval
     single {
         RagClient(

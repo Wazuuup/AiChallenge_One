@@ -399,4 +399,26 @@ class ChatApi {
             eventSource.close()
         }
     }
+
+    /**
+     * Transcribe audio data to text using backend STT service.
+     *
+     * @param request TranscribeRequest containing base64 encoded audio data
+     * @return TranscribeResponse with transcribed text
+     * @throws Exception if the request fails
+     */
+    suspend fun transcribe(
+        request: TranscribeRequest
+    ): TranscribeResponse {
+        return try {
+            val response = client.post("$serverUrl/api/transcribe") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+            response.body()
+        } catch (e: Exception) {
+            println("Error transcribing audio: $e")
+            throw e
+        }
+    }
 }

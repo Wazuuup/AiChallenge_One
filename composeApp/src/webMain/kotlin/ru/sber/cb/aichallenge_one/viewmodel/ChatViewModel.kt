@@ -2,14 +2,21 @@ package ru.sber.cb.aichallenge_one.viewmodel
 
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import ru.sber.cb.aichallenge_one.api.ChatApi
+import ru.sber.cb.aichallenge_one.audio.AudioRecorder
+import ru.sber.cb.aichallenge_one.audio.AudioRecorderCallbacks
+import ru.sber.cb.aichallenge_one.audio.AudioRecorderFactory
+import ru.sber.cb.aichallenge_one.audio.AudioRecordingResult
 import ru.sber.cb.aichallenge_one.models.*
 
 class ChatViewModel : ViewModel() {
@@ -63,6 +70,19 @@ class ChatViewModel : ViewModel() {
     val snackbarHostState = SnackbarHostState()
 
     private val _lastShownNotificationId = MutableStateFlow<String?>(null)
+
+    // Voice input state
+    private val _isRecording = mutableStateOf(false)
+    val isRecording: State<Boolean> = _isRecording
+
+    private val _recordingDuration = mutableStateOf(0L)
+    val recordingDuration: State<Long> = _recordingDuration
+
+    private val _showMicPermissionBanner = mutableStateOf(false)
+    val showMicPermissionBanner: State<Boolean> = _showMicPermissionBanner
+
+    private var audioRecorder: AudioRecorder? = null
+    private var recordingTimerJob: Job? = null
 
     init {
         // Fetch models and history on initialization
@@ -292,6 +312,99 @@ class ChatViewModel : ViewModel() {
 
             // Wait 30 seconds before next poll
             delay(30_000L)
+        }
+    }
+
+    fun checkMicrophonePermission() {
+        // The actual permission check will be handled by JS interop when recording starts
+        // This method is a placeholder for future explicit permission checking
+    }
+
+    fun toggleRecording() {
+        if (_isRecording.value) {
+            stopRecording()
+        } else {
+            startRecording()
+        }
+    }
+
+    private fun startRecording() {
+        viewModelScope.launch {
+            audioRecorder = AudioRecorderFactory.create(
+                callbacks = object : AudioRecorderCallbacks {
+                    override fun onRecordingStarted() {
+                        _isRecording.value = true
+                        _recordingDuration.value = 0L
+                        // Start timer
+                        recordingTimerJob = launch {
+                            while (_isRecording.value) {
+                                delay(100)
+                                _recordingDuration.value = (audioRecorder?.getCurrentDuration() ?: 0L)
+
+                                // Auto-stop at 30 seconds
+                                if (_recordingDuration.value >= 30_000) {
+                                    stopRecording()
+                                }
+                            }
+                        }
+                    }
+
+                    override fun onRecordingStopped(result: AudioRecordingResult) {
+                        _isRecording.value = false
+                        recordingTimerJob?.cancel()
+
+                        // Auto-send transcribed text
+                        viewModelScope.launch {
+                            try {
+                                val response = chatApi.transcribe(
+                                    TranscribeRequest(
+                                        audioData = result.audioData,
+                                        format = result.format,
+                                        language = "auto"
+                                    )
+                                )
+
+                                if (response.status == "SUCCESS") {
+                                    _inputText.value = response.text
+                                    sendMessage()
+                                } else {
+                                    showError(response.error ?: "Transcription failed")
+                                }
+                            } catch (e: Exception) {
+                                showError("Failed to transcribe audio: ${e.message}")
+                            }
+                        }
+                    }
+
+                    override fun onError(error: String) {
+                        _isRecording.value = false
+                        recordingTimerJob?.cancel()
+                        showError(error)
+                    }
+                }
+            )
+
+            val started = audioRecorder?.startRecording() == true
+            if (!started) {
+                _showMicPermissionBanner.value = true
+            }
+        }
+    }
+
+    private fun stopRecording() {
+        audioRecorder?.stopRecording()
+    }
+
+    fun dismissMicPermissionBanner() {
+        _showMicPermissionBanner.value = false
+    }
+
+    private fun showError(message: String) {
+        viewModelScope.launch {
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short
+            )
         }
     }
 }

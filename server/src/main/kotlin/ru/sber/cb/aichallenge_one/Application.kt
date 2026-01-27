@@ -18,10 +18,7 @@ import org.koin.ktor.ext.inject
 import org.koin.ktor.plugin.Koin
 import ru.sber.cb.aichallenge_one.database.DatabaseFactory
 import ru.sber.cb.aichallenge_one.di.appModule
-import ru.sber.cb.aichallenge_one.routing.chatRouting
-import ru.sber.cb.aichallenge_one.routing.configureToolCallingRouting
-import ru.sber.cb.aichallenge_one.routing.modelsRouting
-import ru.sber.cb.aichallenge_one.routing.notificationRouting
+import ru.sber.cb.aichallenge_one.routing.*
 import ru.sber.cb.aichallenge_one.service.ChatService
 import ru.sber.cb.aichallenge_one.service.mcp.IMcpClientService
 
@@ -206,6 +203,7 @@ fun Application.module() {
         chatRouting()
         modelsRouting()
         notificationRouting()
+        transcribeRoutes()
     }
 
     // Configure tool calling routing
