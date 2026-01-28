@@ -24,7 +24,7 @@ data class WhisperConfig(
     val language: String = "Russian",
     val task: String = "transcribe",
     val outputFormat: String = "txt",
-    val device: String = "auto",
+    val device: String = "cpu",
     val timeout: Int = 120,
     val tempDir: String = "temp",
     val maxFileSize: Long = 25 * 1024 * 1024, // 25 MB

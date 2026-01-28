@@ -319,20 +319,38 @@ class WhisperSTTClient(
     private fun detectDevice(): String {
         return when (whisperConfig.device.lowercase()) {
             "auto" -> {
-                // Try to detect CUDA via nvidia-smi
-                try {
+                // First check nvidia-smi, then verify PyTorch CUDA support
+                val nvidiaDetected = try {
                     val process = ProcessBuilder("nvidia-smi").start()
                     val exitCode = process.waitFor(5, TimeUnit.SECONDS)
-
-                    if (exitCode && process.exitValue() == 0) {
-                        logger.debug("CUDA detected via nvidia-smi")
-                        "cuda"
-                    } else {
-                        logger.debug("CUDA not available, using CPU")
-                        "cpu"
-                    }
+                    exitCode && process.exitValue() == 0
                 } catch (e: Exception) {
-                    logger.debug("CUDA detection failed, using CPU: ${e.message}")
+                    false
+                }
+
+                if (!nvidiaDetected) {
+                    logger.debug("nvidia-smi not found, using CPU")
+                    return "cpu"
+                }
+
+                // Verify PyTorch actually has CUDA support
+                val pytorchCudaAvailable = try {
+                    val process =
+                        ProcessBuilder("python", "-c", "import torch; exit(0 if torch.cuda.is_available() else 1)")
+                            .redirectErrorStream(true)
+                            .start()
+                    val exitCode = process.waitFor(10, TimeUnit.SECONDS)
+                    exitCode && process.exitValue() == 0
+                } catch (e: Exception) {
+                    logger.debug("Failed to verify PyTorch CUDA: ${e.message}")
+                    false
+                }
+
+                if (pytorchCudaAvailable) {
+                    logger.debug("CUDA available via PyTorch")
+                    "cuda"
+                } else {
+                    logger.debug("nvidia-smi found but PyTorch CUDA not available, using CPU")
                     "cpu"
                 }
             }

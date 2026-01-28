@@ -37,7 +37,7 @@ include(":shared")
 // =============================================================================
 // MCP Modules - Disabled for minimal VDS deployment (see SPEC-MCP-VDSINA.md)
 // =============================================================================
-// include(":mcp:notes")
+include(":mcp:notes")
 // include(":mcp:client")
 // include(":mcp:newsapi")
 // include(":mcp:newscrud")
@@ -53,7 +53,7 @@ include(":mcp:vdsina")
 // =============================================================================
 // Services Modules - Disabled for minimal VDS deployment (see SPEC-MCP-VDSINA.md)
 // =============================================================================
-// include(":services:notes")
+include(":services:notes")
 // include(":services:news-crud")
 // include(":services:notes-scheduler")
 include(":services:vectorizer")
